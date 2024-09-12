@@ -80,7 +80,7 @@ export default function App() {
         <Text style={styles.title}>MyModule Inspection</Text>
         <Text style={styles.resultText}>Available properties and methods:</Text>
         <Text style={styles.codeText}>{moduleInfo}</Text>
-        <Text style={styles.resultText}>Current Step Count: {stepCount}</Text>
+        <Text style={styles.resultText}>Current Step Count: {Math.round(stepCount)}</Text>
         <Text style={styles.resultText}>Last Update: {lastUpdateTime}</Text>
         {error && <Text style={styles.errorText}>{error}</Text>}
         <Button 
