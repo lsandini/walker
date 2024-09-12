@@ -1,114 +1,61 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, Button, SafeAreaView, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, Button, SafeAreaView, ScrollView } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as MyModule from './modules/my-module';
 
 export default function App() {
+  const [moduleInfo, setModuleInfo] = useState('');
   const [helloResult, setHelloResult] = useState('');
-  const [stepCount, setStepCount] = useState(0);
-  const [isTracking, setIsTracking] = useState(false);
-  const [stepUpdates, setStepUpdates] = useState([]);
   const [error, setError] = useState(null);
 
-  const handleStepUpdate = useCallback((event) => {
-    console.log('Raw step update received:', event);
-    try {
-      if (event && typeof event.data === 'string') {
-        const data = JSON.parse(event.data);
-        if ('steps' in data) {
-          const steps = Number(data.steps);
-          if (!isNaN(steps)) {
-            setStepCount(steps);
-            setStepUpdates(prevUpdates => [...prevUpdates, { timestamp: new Date().toLocaleTimeString(), steps }]);
-          } else {
-            throw new Error('Invalid step count');
-          }
-        } else {
-          throw new Error('Steps data not found in event');
-        }
-      } else {
-        throw new Error('Unexpected event format');
+  useEffect(() => {
+    // Inspect MyModule
+    const info = Object.getOwnPropertyNames(MyModule).map(prop => {
+      return `${prop}: ${typeof MyModule[prop]}`;
+    }).join('\n');
+    setModuleInfo(info);
+
+    // Try to call hello function
+    if (typeof MyModule.hello === 'function') {
+      try {
+        const result = MyModule.hello();
+        setHelloResult(result);
+      } catch (err) {
+        setError(`Error calling hello: ${err.message}`);
       }
-    } catch (err) {
-      console.error('Error processing step update:', err);
-      setError(`Error processing step update: ${err.message}`);
+    } else {
+      setError('hello function is not available');
     }
   }, []);
 
-  useEffect(() => {
-    setHelloResult(MyModule.hello());
-
-    if (typeof MyModule.addChangeListener === 'function') {
-      const removeListener = MyModule.addChangeListener('onStepsUpdate', handleStepUpdate);
-      console.log('Listener added successfully');
-
-      return () => {
-        if (typeof removeListener === 'function') {
-          removeListener();
-          console.log('Listener removed successfully');
-        }
-        stopStepTracking();
-      };
+  const callFunction = async (funcName) => {
+    if (typeof MyModule[funcName] === 'function') {
+      try {
+        const result = await MyModule[funcName]();
+        console.log(`${funcName} result:`, result);
+        setError(`${funcName} called successfully`);
+      } catch (err) {
+        console.error(`Error calling ${funcName}:`, err);
+        setError(`Error calling ${funcName}: ${err.message}`);
+      }
     } else {
-      console.warn('addChangeListener is not available');
-      return () => {
-        stopStepTracking();
-      };
-    }
-  }, [handleStepUpdate]);
-
-  const startStepTracking = async () => {
-    try {
-      await MyModule.startStepTracking();
-      setIsTracking(true);
-      console.log('Step tracking started');
-    } catch (err) {
-      console.error('Error starting step tracking:', err);
-      setError(`Error starting step tracking: ${err.message}`);
+      setError(`${funcName} is not a function`);
     }
   };
-
-  const stopStepTracking = async () => {
-    try {
-      await MyModule.stopStepTracking();
-      setIsTracking(false);
-      console.log('Step tracking stopped');
-    } catch (err) {
-      console.error('Error stopping step tracking:', err);
-      setError(`Error stopping step tracking: ${err.message}`);
-    }
-  };
-
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <Text style={styles.title}>HealthKit Step Tracking</Text>
-      <Text style={styles.resultText}>Hello function result: {helloResult}</Text>
-      <Text style={styles.resultText}>Current step count: {stepCount}</Text>
-      {error && <Text style={styles.errorText}>{error}</Text>}
-      <Button 
-        title={isTracking ? "Stop Tracking" : "Start Tracking"} 
-        onPress={isTracking ? stopStepTracking : startStepTracking} 
-      />
-      <Text style={styles.title}>Step Updates:</Text>
-    </View>
-  );
-
-  const renderStepUpdate = ({ item }) => (
-    <Text style={styles.updateText}>
-      {item.timestamp}: {item.steps} steps
-    </Text>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <FlatList
-        ListHeaderComponent={renderHeader}
-        data={stepUpdates}
-        renderItem={renderStepUpdate}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.listContent}
-      />
-      <StatusBar style="auto" />
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <Text style={styles.title}>MyModule Inspection</Text>
+        <Text style={styles.resultText}>Available properties and methods:</Text>
+        <Text style={styles.codeText}>{moduleInfo}</Text>
+        <Text style={styles.resultText}>Hello function result: {helloResult}</Text>
+        {error && <Text style={styles.errorText}>{error}</Text>}
+        <Button title="Call hello()" onPress={() => callFunction('hello')} />
+        <Button title="Call startStepTracking()" onPress={() => callFunction('startStepTracking')} />
+        <Button title="Call stopStepTracking()" onPress={() => callFunction('stopStepTracking')} />
+        <StatusBar style="auto" />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -118,32 +65,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
   },
-  header: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  scrollContent: {
     padding: 20,
-  },
-  listContent: {
-    paddingBottom: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
+    marginBottom: 20,
   },
   resultText: {
-    marginTop: 10,
     fontSize: 16,
+    marginVertical: 10,
+  },
+  codeText: {
+    fontFamily: 'monospace',
+    fontSize: 14,
+    marginVertical: 10,
   },
   errorText: {
     color: 'red',
-    marginTop: 10,
-    fontSize: 16,
-  },
-  updateText: {
-    fontSize: 14,
-    marginVertical: 5,
-    paddingHorizontal: 20,
+    marginVertical: 10,
   },
 });

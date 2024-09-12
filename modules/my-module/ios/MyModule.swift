@@ -4,7 +4,6 @@ import HealthKit
 public class MyModule: Module {
     private var healthStore: HKHealthStore?
     private var query: HKObserverQuery?
-    private var updateHandler: (() -> Void)?
 
     public func definition() -> ModuleDefinition {
         Name("MyModule")
@@ -12,8 +11,6 @@ public class MyModule: Module {
         Constants([
             "PI": Double.pi
         ])
-
-        Events("onChange", "onStepsUpdate")
 
         Function("hello") {
             return "Hello world! 👋"
@@ -25,32 +22,33 @@ public class MyModule: Module {
             ])
         }
 
-        AsyncFunction("startStepTracking") { () -> Void in
-            self.setupHealthKit()
-        }
-
-        AsyncFunction("stopStepTracking") { () -> Void in
-            self.stopHealthKitTracking()
-        }
-
-        View(MyModuleView.self) {
-            Prop("name") { (view: MyModuleView, prop: String) in
-                print(prop)
+        AsyncFunction("startStepTracking") { () -> String in
+            do {
+                try self.setupHealthKit()
+                return "Step tracking started successfully"
+            } catch {
+                throw error
             }
         }
+
+        AsyncFunction("stopStepTracking") { () -> String in
+            self.stopHealthKitTracking()
+            return "Step tracking stopped"
+        }
+
+        // Keep your existing event definitions
+        Events("onChange", "onStepsUpdate")
     }
 
-    private func setupHealthKit() {
+    private func setupHealthKit() throws {
         guard HKHealthStore.isHealthDataAvailable() else {
-            print("HealthKit is not available on this device")
-            return
+            throw NSError(domain: "HealthKit", code: 0, userInfo: [NSLocalizedDescriptionKey: "HealthKit is not available on this device"])
         }
 
         healthStore = HKHealthStore()
 
         guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
-            print("Step count is not available")
-            return
+            throw NSError(domain: "HealthKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "Step count is not available"])
         }
 
         healthStore?.requestAuthorization(toShare: [], read: [stepType]) { (success, error) in
@@ -101,16 +99,9 @@ public class MyModule: Module {
 
             let steps = sum.doubleValue(for: HKUnit.count())
             DispatchQueue.main.async {
-                do {
-                    let jsonData = try JSONSerialization.data(withJSONObject: ["steps": steps], options: [])
-                    if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        self?.sendEvent("onStepsUpdate", [
-                            "data": jsonString
-                        ])
-                    }
-                } catch {
-                    print("Error converting step data to JSON: \(error.localizedDescription)")
-                }
+                self?.sendEvent("onStepsUpdate", [
+                    "steps": steps
+                ])
             }
         }
 

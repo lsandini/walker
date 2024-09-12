@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "plugin added"
+git commit -m "refactor plugin"
 git push -u origin main
