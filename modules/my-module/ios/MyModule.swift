@@ -1,44 +1,119 @@
 import ExpoModulesCore
+import HealthKit
 
 public class MyModule: Module {
-  // Each module class must implement the definition function. The definition consists of components
-  // that describes the module's functionality and behavior.
-  // See https://docs.expo.dev/modules/module-api for more details about available components.
-  public func definition() -> ModuleDefinition {
-    // Sets the name of the module that JavaScript code will use to refer to the module. Takes a string as an argument.
-    // Can be inferred from module's class name, but it's recommended to set it explicitly for clarity.
-    // The module will be accessible from `requireNativeModule('MyModule')` in JavaScript.
-    Name("MyModule")
+    private var healthStore: HKHealthStore?
+    private var query: HKObserverQuery?
+    private var updateHandler: (() -> Void)?
 
-    // Sets constant properties on the module. Can take a dictionary or a closure that returns a dictionary.
-    Constants([
-      "PI": Double.pi
-    ])
+    public func definition() -> ModuleDefinition {
+        Name("MyModule")
 
-    // Defines event names that the module can send to JavaScript.
-    Events("onChange")
+        Constants([
+            "PI": Double.pi
+        ])
 
-    // Defines a JavaScript synchronous function that runs the native code on the JavaScript thread.
-    Function("hello") {
-      return "Hello world! 👋"
+        Events("onChange", "onStepsUpdate")
+
+        Function("hello") {
+            return "Hello world! 👋"
+        }
+
+        AsyncFunction("setValueAsync") { (value: String) in
+            self.sendEvent("onChange", [
+                "value": value
+            ])
+        }
+
+        AsyncFunction("startStepTracking") { () -> Void in
+            self.setupHealthKit()
+        }
+
+        AsyncFunction("stopStepTracking") { () -> Void in
+            self.stopHealthKitTracking()
+        }
+
+        View(MyModuleView.self) {
+            Prop("name") { (view: MyModuleView, prop: String) in
+                print(prop)
+            }
+        }
     }
 
-    // Defines a JavaScript function that always returns a Promise and whose native code
-    // is by default dispatched on the different thread than the JavaScript runtime runs on.
-    AsyncFunction("setValueAsync") { (value: String) in
-      // Send an event to JavaScript.
-      self.sendEvent("onChange", [
-        "value": value
-      ])
+    private func setupHealthKit() {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            print("HealthKit is not available on this device")
+            return
+        }
+
+        healthStore = HKHealthStore()
+
+        guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
+            print("Step count is not available")
+            return
+        }
+
+        healthStore?.requestAuthorization(toShare: [], read: [stepType]) { (success, error) in
+            if success {
+                self.startObservingSteps()
+            } else if let error = error {
+                print("HealthKit authorization failed: \(error.localizedDescription)")
+            }
+        }
     }
 
-    // Enables the module to be used as a native view. Definition components that are accepted as part of the
-    // view definition: Prop, Events.
-    View(MyModuleView.self) {
-      // Defines a setter for the `name` prop.
-      Prop("name") { (view: MyModuleView, prop: String) in
-        print(prop)
-      }
+    private func startObservingSteps() {
+        guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else { return }
+
+        let query = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] (query, completionHandler, error) in
+            if let error = error {
+                print("Observer Query Error: \(error.localizedDescription)")
+                return
+            }
+
+            self?.updateSteps()
+            completionHandler()
+        }
+
+        healthStore?.execute(query)
+        self.query = query
+
+        // Enable background delivery of step count updates
+        healthStore?.enableBackgroundDelivery(for: stepType, frequency: .immediate) { (success, error) in
+            if let error = error {
+                print("Failed to enable background delivery: \(error.localizedDescription)")
+            }
+        }
     }
-  }
+
+    private func updateSteps() {
+        guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else { return }
+
+        let now = Date()
+        let startOfDay = Calendar.current.startOfDay(for: now)
+        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
+
+        let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] (_, result, error) in
+            guard let result = result, let sum = result.sumQuantity() else {
+                print("Failed to fetch steps: \(error?.localizedDescription ?? "Unknown error")")
+                return
+            }
+
+            let steps = sum.doubleValue(for: HKUnit.count())
+            DispatchQueue.main.async {
+                self?.sendEvent("onStepsUpdate", [
+                    "steps": steps
+                ])
+            }
+        }
+
+        healthStore?.execute(query)
+    }
+
+    private func stopHealthKitTracking() {
+        if let query = self.query {
+            healthStore?.stop(query)
+            self.query = nil
+        }
+    }
 }
