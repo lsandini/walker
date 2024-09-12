@@ -13,7 +13,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.lsandini.walker"
+      "bundleIdentifier": "com.lsandini.walker",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "remote-notification", "processing"]
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,6 +31,23 @@
       "eas": {
         "projectId": "e985fdca-83d6-499a-8ddb-9140c993f541"
       }
-    }
+    },
+    "plugins": [
+      "./withEntitlementsPlist.js",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "buildToolsVersion": "34.0.0",
+            "minSdkVersion": 26
+          },
+          "ios": {
+            "deploymentTarget": "14.0"
+          }
+        }
+      ]
+    ]
   }
 }

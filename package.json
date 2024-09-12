@@ -15,7 +15,8 @@
     "react-native": "0.74.5",
     "typescript": "~5.3.3",
     "@types/react": "~18.2.79",
-    "expo-dev-client": "~4.0.26"
+    "expo-dev-client": "~4.0.26",
+    "expo-build-properties": "~0.12.5"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"
