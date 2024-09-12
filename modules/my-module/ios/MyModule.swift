@@ -5,7 +5,6 @@ public class MyModule: Module {
     private var healthStore: HKHealthStore?
     private var query: HKObserverQuery?
 
-    // MARK: - Module Definition
     public func definition() -> ModuleDefinition {
         Name("MyModule")
 
@@ -13,14 +12,17 @@ public class MyModule: Module {
             "PI": Double.pi
         ])
 
-        // Simple function to test exposure
         Function("hello") {
             return "Hello world! 👋"
         }
 
-        // Async function to start step tracking
+        AsyncFunction("setValueAsync") { (value: String) in
+            self.sendEvent("onChange", [
+                "value": value
+            ])
+        }
+
         AsyncFunction("startStepTracking") { () -> String in
-            print("startStepTracking called")
             do {
                 try self.setupHealthKit()
                 return "Step tracking started successfully"
@@ -29,24 +31,15 @@ public class MyModule: Module {
             }
         }
 
-        // Async function to stop step tracking
         AsyncFunction("stopStepTracking") { () -> String in
-            print("stopStepTracking called")
             self.stopHealthKitTracking()
             return "Step tracking stopped"
         }
 
-        // Define events emitted to JS
+        // Keep your existing event definitions
         Events("onChange", "onStepsUpdate")
-
-        // Event emitter to send events back to JS
-        EventEmitter { (eventEmitter) in
-            // Handle event emitter for background updates
-            self.registerEmitter(eventEmitter)
-        }
     }
 
-    // MARK: - HealthKit Setup
     private func setupHealthKit() throws {
         guard HKHealthStore.isHealthDataAvailable() else {
             throw NSError(domain: "HealthKit", code: 0, userInfo: [NSLocalizedDescriptionKey: "HealthKit is not available on this device"])
@@ -67,7 +60,6 @@ public class MyModule: Module {
         }
     }
 
-    // MARK: - Start Observing Steps
     private func startObservingSteps() {
         guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else { return }
 
@@ -77,10 +69,7 @@ public class MyModule: Module {
                 return
             }
 
-            // Trigger step update on each change
             self?.updateSteps()
-
-            // Notify that observation completed successfully
             completionHandler()
         }
 
@@ -95,7 +84,6 @@ public class MyModule: Module {
         }
     }
 
-    // MARK: - Update Steps
     private func updateSteps() {
         guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else { return }
 
@@ -111,7 +99,6 @@ public class MyModule: Module {
 
             let steps = sum.doubleValue(for: HKUnit.count())
             DispatchQueue.main.async {
-                // Emit event to JS with step count
                 self?.sendEvent("onStepsUpdate", [
                     "steps": steps
                 ])
@@ -121,22 +108,10 @@ public class MyModule: Module {
         healthStore?.execute(query)
     }
 
-    // MARK: - Stop HealthKit Tracking
     private func stopHealthKitTracking() {
         if let query = self.query {
             healthStore?.stop(query)
             self.query = nil
         }
-    }
-
-    // MARK: - Event Emitter Registration
-    private var eventEmitter: EventEmitter?
-
-    private func registerEmitter(_ emitter: EventEmitter) {
-        self.eventEmitter = emitter
-    }
-
-    private func sendEvent(_ name: String, _ body: [String: Any]) {
-        eventEmitter?.emit(name, body)
     }
 }
