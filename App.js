@@ -3,6 +3,8 @@ import { StyleSheet, Text, View, Button, SafeAreaView, ScrollView } from 'react-
 import { StatusBar } from 'expo-status-bar';
 import * as MyModule from './modules/my-module';
 
+//console.log('MyModule:', MyModule.hello());
+
 export default function App() {
   const [moduleInfo, setModuleInfo] = useState('');
   const [helloResult, setHelloResult] = useState('');

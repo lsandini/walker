@@ -20,6 +20,7 @@ public class MyModule: Module {
 
         // Async function to start step tracking
         AsyncFunction("startStepTracking") { () -> String in
+            print("startStepTracking called")
             do {
                 try self.setupHealthKit()
                 return "Step tracking started successfully"
@@ -30,6 +31,7 @@ public class MyModule: Module {
 
         // Async function to stop step tracking
         AsyncFunction("stopStepTracking") { () -> String in
+            print("stopStepTracking called")
             self.stopHealthKitTracking()
             return "Step tracking stopped"
         }
