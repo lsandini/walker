@@ -14,7 +14,6 @@ const {
     // Define the new entitlements
     const newEntitlements = {
       'aps-environment': 'development',
-      'com.apple.developer.associated-domains': ['applinks:cgmsim.com/app'],
       'com.apple.developer.healthkit': true,
       'com.apple.developer.healthkit.access': ['health-records'],
       'com.apple.developer.healthkit.background-delivery': true,
