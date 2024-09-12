@@ -35,3 +35,4 @@ dist/
 
 # typescript
 *.tsbuildinfo
+eas.json

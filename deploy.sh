@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "icons + EAS secrets"
+git commit -m "rounded steps"
 git push -u origin main

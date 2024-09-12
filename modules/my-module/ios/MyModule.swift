@@ -142,7 +142,7 @@ public class MyModule: Module {
 
         let bodyData: [String: Any] = [
             "created_at": ISO8601DateFormatter().string(from: Date()),
-            "steps-ios": steps
+            "steps-ios": Int(round(steps))
         ]
 
         guard let url = URL(string: apiUrl) else {
