@@ -13,17 +13,21 @@ export default function App() {
   const handleStepUpdate = useCallback((event) => {
     console.log('Raw step update received:', event);
     try {
-      const data = JSON.parse(event);
-      if ('steps' in data) {
-        const steps = Number(data.steps);
-        if (!isNaN(steps)) {
-          setStepCount(steps);
-          setStepUpdates(prevUpdates => [...prevUpdates, { timestamp: new Date().toLocaleTimeString(), steps }]);
+      if (event && typeof event.data === 'string') {
+        const data = JSON.parse(event.data);
+        if ('steps' in data) {
+          const steps = Number(data.steps);
+          if (!isNaN(steps)) {
+            setStepCount(steps);
+            setStepUpdates(prevUpdates => [...prevUpdates, { timestamp: new Date().toLocaleTimeString(), steps }]);
+          } else {
+            throw new Error('Invalid step count');
+          }
         } else {
-          throw new Error('Invalid step count');
+          throw new Error('Steps data not found in event');
         }
       } else {
-        throw new Error('Steps data not found in event');
+        throw new Error('Unexpected event format');
       }
     } catch (err) {
       console.error('Error processing step update:', err);

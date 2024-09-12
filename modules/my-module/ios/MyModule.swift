@@ -104,7 +104,9 @@ public class MyModule: Module {
                 do {
                     let jsonData = try JSONSerialization.data(withJSONObject: ["steps": steps], options: [])
                     if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        self?.sendEvent("onStepsUpdate", jsonString)
+                        self?.sendEvent("onStepsUpdate", [
+                            "data": jsonString
+                        ])
                     }
                 } catch {
                     print("Error converting step data to JSON: \(error.localizedDescription)")
