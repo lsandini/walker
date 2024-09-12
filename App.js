@@ -10,6 +10,7 @@ export default function App() {
   const [helloResult, setHelloResult] = useState('');
   const [error, setError] = useState(null);
   const [stepCount, setStepCount] = useState(0);
+  const [lastUpdateTime, setLastUpdateTime] = useState('N/A');
   const [isTracking, setIsTracking] = useState(false);
 
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function App() {
       console.log('Step update received:', event);
       if (event && typeof event.steps === 'number') {
         setStepCount(event.steps);
+        setLastUpdateTime(new Date().toLocaleTimeString());
       }
     });
 
@@ -78,10 +80,9 @@ export default function App() {
         <Text style={styles.title}>MyModule Inspection</Text>
         <Text style={styles.resultText}>Available properties and methods:</Text>
         <Text style={styles.codeText}>{moduleInfo}</Text>
-        <Text style={styles.resultText}>Hello function result: {helloResult}</Text>
         <Text style={styles.resultText}>Current Step Count: {stepCount}</Text>
+        <Text style={styles.resultText}>Last Update: {lastUpdateTime}</Text>
         {error && <Text style={styles.errorText}>{error}</Text>}
-        <Button title="Call hello()" onPress={() => setHelloResult(MyModule.hello())} />
         <Button 
           title={isTracking ? "Stop Step Tracking" : "Start Step Tracking"} 
           onPress={isTracking ? stopStepTracking : startStepTracking} 
