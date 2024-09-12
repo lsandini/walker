@@ -4,6 +4,8 @@ import HealthKit
 public class MyModule: Module {
     private var healthStore: HKHealthStore?
     private var query: HKObserverQuery?
+    private var apiUrl: String? // Store API URL
+    private var apiKey: String? // Store API Key
 
     public func definition() -> ModuleDefinition {
         Name("MyModule")
@@ -22,6 +24,15 @@ public class MyModule: Module {
             ])
         }
 
+        // The new setApiDetails function
+        AsyncFunction("setApiDetails") { (url: String, key: String) in
+            self.apiUrl = url
+            self.apiKey = key
+            print("API URL set to: \(url)")
+            print("API Key set to: \(key)")
+            // You can add more logic here to use the API details, e.g., making API requests, etc.
+        }
+
         AsyncFunction("startStepTracking") { () -> String in
             do {
                 try self.setupHealthKit()
@@ -36,7 +47,6 @@ public class MyModule: Module {
             return "Step tracking stopped"
         }
 
-        // Keep your existing event definitions
         Events("onChange", "onStepsUpdate")
     }
 

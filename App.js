@@ -4,6 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 import { requireNativeModule } from 'expo-modules-core';
 
 const MyModule = requireNativeModule('MyModule');
+const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+const apiKey = process.env.EXPO_PUBLIC_API_KEY;
+console.log('API URL:', apiUrl);
+console.log('API Key:', apiKey);
+// Pass the values to the native module
+MyModule.setApiDetails(apiUrl, apiKey);
 
 export default function App() {
   const [moduleInfo, setModuleInfo] = useState('');
