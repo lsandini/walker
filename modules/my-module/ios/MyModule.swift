@@ -101,9 +101,14 @@ public class MyModule: Module {
 
             let steps = sum.doubleValue(for: HKUnit.count())
             DispatchQueue.main.async {
-                self?.sendEvent("onStepsUpdate", [
-                    "steps": steps
-                ])
+                do {
+                    let jsonData = try JSONSerialization.data(withJSONObject: ["steps": steps], options: [])
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        self?.sendEvent("onStepsUpdate", jsonString)
+                    }
+                } catch {
+                    print("Error converting step data to JSON: \(error.localizedDescription)")
+                }
             }
         }
 
@@ -116,4 +121,9 @@ public class MyModule: Module {
             self.query = nil
         }
     }
+}
+
+// Assuming you have a MyModuleView defined somewhere
+class MyModuleView: ExpoView {
+    // Implementation of MyModuleView
 }
