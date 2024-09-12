@@ -124,8 +124,3 @@ public class MyModule: Module {
         }
     }
 }
-
-// Assuming you have a MyModuleView defined somewhere
-class MyModuleView: ExpoView {
-    // Implementation of MyModuleView
-}
