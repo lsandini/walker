@@ -33,8 +33,7 @@
       }
     },
     "plugins": [
-      "./withEntitlementsPlist.js",
-      "./withBackgroundURLSessionHandler.js",
+      "./withEntitlementsPlist.js"
       [
         "expo-build-properties",
         {
