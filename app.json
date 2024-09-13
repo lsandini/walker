@@ -15,7 +15,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.lsandini.walker",
       "infoPlist": {
-        "UIBackgroundModes": ["fetch", "remote-notification", "processing"]
+        "NSHealthShareUsageDescription": "This app uses HealthKit to access your step count.",
+        "NSHealthUpdateUsageDescription": "This app uses HealthKit to track your steps.",
+        "UIBackgroundModes": ["fetch", "remote-notification", "processing", "location"]
       }
     },
     "android": {

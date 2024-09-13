@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "return to 12.9 version"
+git commit -m "background task added"
 git push -u origin main

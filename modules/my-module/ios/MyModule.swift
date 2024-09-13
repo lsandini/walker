@@ -1,5 +1,6 @@
 import ExpoModulesCore
 import HealthKit
+import UIKit
 
 public class MyModule: Module {
     private var healthStore: HKHealthStore?
@@ -77,8 +78,11 @@ public class MyModule: Module {
                 return
             }
 
-            self?.updateSteps()
-            completionHandler()
+            // Handle step updates and trigger the upload
+            self?.handleStepUpdate {
+                // Call HealthKit's completion handler when done
+                completionHandler()
+            }
         }
 
         healthStore?.execute(query)
@@ -92,36 +96,40 @@ public class MyModule: Module {
         }
     }
 
-    private func updateSteps() {
-        guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else { return }
+    private func handleStepUpdate(completion: @escaping () -> Void) {
+        // Start a background task to ensure the app can run while uploading data
+        let backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "UploadSteps") {
+            // End the background task if iOS forces it to expire
+            UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        }
+
+        // Fetch step data and perform the upload
+        fetchStepData { [weak self] steps in
+            self?.uploadStepsToAPI(steps: steps) {
+                // When done, end the background task and call the completion handler
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                completion()
+            }
+        }
+    }
+
+    // Function to fetch the latest step data from HealthKit
+    private func fetchStepData(completion: @escaping (Double) -> Void) {
+        guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return }
 
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
         let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: now, options: .strictStartDate)
 
-        let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { [weak self] (_, result, error) in
+        let query = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: predicate, options: .cumulativeSum) { (_, result, error) in
             guard let result = result, let sum = result.sumQuantity() else {
                 print("Failed to fetch steps: \(error?.localizedDescription ?? "Unknown error")")
+                completion(0)
                 return
             }
 
             let steps = sum.doubleValue(for: HKUnit.count())
-
-            // Dispatch the step count update event
-            DispatchQueue.main.async {
-                self?.sendEvent("onStepsUpdate", [
-                    "steps": steps
-                ])
-
-                // Automatically upload steps to API
-                Task {
-                    do {
-                        try await self?.uploadStepsToAPI(steps: steps)
-                    } catch {
-                        print("Error uploading steps to API: \(error.localizedDescription)")
-                    }
-                }
-            }
+            completion(steps)
         }
 
         healthStore?.execute(query)
@@ -134,7 +142,7 @@ public class MyModule: Module {
         }
     }
 
-    private func uploadStepsToAPI(steps: Double) async throws {
+    private func uploadStepsToAPI(steps: Double, completion: @escaping () -> Void) {
         guard let apiUrl = self.apiUrl, let apiKey = self.apiKey else {
             print("No API URL or API key available")
             return
@@ -146,7 +154,8 @@ public class MyModule: Module {
         ]
 
         guard let url = URL(string: apiUrl) else {
-            throw NSError(domain: "MyModule", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid API URL"])
+            print("Invalid API URL")
+            return
         }
 
         var request = URLRequest(url: url)
@@ -158,16 +167,22 @@ public class MyModule: Module {
             let jsonData = try JSONSerialization.data(withJSONObject: bodyData, options: [])
             request.httpBody = jsonData
 
-            let (data, response) = try await URLSession.shared.data(for: request)
-
-            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
-                throw NSError(domain: "MyModule", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to upload data to API"])
+            // Upload data in the background
+            let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                if let error = error {
+                    print("Failed to upload steps: \(error.localizedDescription)")
+                } else if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                    print("Upload failed with status: \(httpResponse.statusCode)")
+                } else {
+                    print("Steps uploaded successfully")
+                }
+                completion()
             }
 
-            print("Data uploaded to API successfully")
+            task.resume()
         } catch {
-            print("Error uploading data to API: \(error.localizedDescription)")
-            throw error
+            print("Error uploading steps: \(error.localizedDescription)")
+            completion()
         }
     }
 }

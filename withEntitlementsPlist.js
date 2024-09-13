@@ -9,7 +9,7 @@ const {
   
   // Function to change the cgmsimapp.entitlements
   const changeEntitlements = (entitlements) => {
-    console.log('Modifying cgmsimapp.entitlements...');
+    console.log('Modifying walker.entitlements...');
   
     // Define the new entitlements
     const newEntitlements = {
@@ -32,7 +32,6 @@ const {
     {
       healthSharePermission,
       healthUpdatePermission,
-      isClinicalDataEnabled,
       healthClinicalDescription,
     } = {}
   ) => {
