@@ -6,6 +6,8 @@
 
 @implementation MyModule
 
+EX_EXPORT_MODULE(MyModule);
+
 + (instancetype)shared {
     static MyModule *sharedInstance = nil;
     static dispatch_once_t onceToken;
@@ -19,6 +21,6 @@
     self.backgroundCompletionHandler = completionHandler;
 }
 
-// You can add other methods here as needed
+// Your existing methods...
 
 @end

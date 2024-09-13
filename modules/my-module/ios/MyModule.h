@@ -1,13 +1,10 @@
 #import <Foundation/Foundation.h>
 
-@interface MyModule : NSObject
+#import <ExpoModulesCore/ExpoModulesCore.h>
 
-// Shared instance accessor
+@interface MyModule : EXExportedModule
+
 + (instancetype)shared;
-
-// Method to set the background completion handler
 - (void)setBackgroundCompletionHandler:(void (^)(void))completionHandler;
-
-// You can add other methods here as needed for your module
 
 @end

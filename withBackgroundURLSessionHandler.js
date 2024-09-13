@@ -1,15 +1,14 @@
 const { withAppDelegate } = require('@expo/config-plugins');
 
-// Function to generate the new content for AppDelegate.mm
+// Function to change the AppDelegate.mm
 const changeAppDelegate = () => {
   console.log('Overwriting AppDelegate.mm...');
   
   // Define the new contents of the AppDelegate.mm file
-  const newContents = `
-#import "AppDelegate.h"
+  const newContents = `#import "AppDelegate.h"
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTLinkingManager.h>
-#import "MyModule.h"  // Import your custom module
+#import "MyModule.h"
 
 @implementation AppDelegate
 
@@ -69,8 +68,9 @@ const changeAppDelegate = () => {
 
 // Handle background URL session events
 - (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)(void))completionHandler {
-  // Store the completion handler for later use in your custom module
-  [[MyModule shared] setBackgroundCompletionHandler:completionHandler];
+  if ([identifier isEqualToString:@"com.lsandini.walker.stepupload"]) {
+    [MyModule.shared setBackgroundCompletionHandler:completionHandler];
+  }
 }
 
 @end
@@ -85,9 +85,8 @@ module.exports = (config) => {
   return withAppDelegate(config, (config) => {
     console.log('Running withAppDelegate...');
     if (config.modResults.language === 'objcpp') {
-      // Only modify if the file is Objective-C++
       console.log('Language is objcpp, modifying AppDelegate.mm...');
-      config.modResults.contents = changeAppDelegate();
+      config.modResults.contents = changeAppDelegate(config.modResults.contents);
     } else {
       console.log(`Language is ${config.modResults.language}, not modifying AppDelegate.mm.`);
     }
