@@ -33,7 +33,7 @@
       }
     },
     "plugins": [
-      "./withEntitlementsPlist.js"
+      "./withEntitlementsPlist.js",
       [
         "expo-build-properties",
         {
