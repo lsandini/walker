@@ -6,10 +6,18 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ns-2.oracle.cgmsim.com/api/v1/activity",
+        "EXPO_PUBLIC_API_KEY": "51f93ca9b254733807d44e251209a39014527506"
+      }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://ns-2.oracle.cgmsim.com/api/v1/activity",
+        "EXPO_PUBLIC_API_KEY": "51f93ca9b254733807d44e251209a39014527506"
+      }
     },
     "production": {
       "autoIncrement": true

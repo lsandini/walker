@@ -97,10 +97,14 @@ public class MyModule: Module {
     }
 
     private func handleStepUpdate(completion: @escaping () -> Void) {
-        // Start a background task to ensure the app can run while uploading data
-        let backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "UploadSteps") {
+        // Declare the background task ID variable
+        var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+
+        // Begin the background task
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "UploadSteps") {
             // End the background task if iOS forces it to expire
             UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            backgroundTaskID = .invalid
         }
 
         // Fetch step data and perform the upload
@@ -108,6 +112,7 @@ public class MyModule: Module {
             self?.uploadStepsToAPI(steps: steps) {
                 // When done, end the background task and call the completion handler
                 UIApplication.shared.endBackgroundTask(backgroundTaskID)
+                backgroundTaskID = .invalid
                 completion()
             }
         }
