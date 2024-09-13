@@ -5,8 +5,10 @@ import UIKit
 public class MyModule: Module {
     private var healthStore: HKHealthStore?
     private var query: HKObserverQuery?
-    private var apiUrl: String? // Store API URL
-    private var apiKey: String? // Store API Key
+    private var apiUrl: String?
+    private var apiKey: String?
+    private var lastUpdateTime: Date?
+    private let iso8601Formatter = ISO8601DateFormatter()
 
     public func definition() -> ModuleDefinition {
         Name("MyModule")
@@ -46,6 +48,11 @@ public class MyModule: Module {
             return "Step tracking stopped"
         }
 
+        AsyncFunction("getLastUpdateTime") { () -> String? in
+            guard let lastUpdateTime = self.lastUpdateTime else { return nil }
+            return self.iso8601Formatter.string(from: lastUpdateTime)
+        }
+
         Events("onChange", "onStepsUpdate")
     }
 
@@ -75,12 +82,11 @@ public class MyModule: Module {
         let query = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] (query, completionHandler, error) in
             if let error = error {
                 print("Observer Query Error: \(error.localizedDescription)")
+                completionHandler()
                 return
             }
 
-            // Handle step updates and trigger the upload
             self?.handleStepUpdate {
-                // Call HealthKit's completion handler when done
                 completionHandler()
             }
         }
@@ -97,30 +103,42 @@ public class MyModule: Module {
     }
 
     private func handleStepUpdate(completion: @escaping () -> Void) {
-        // Declare the background task ID variable
         var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
 
-        // Begin the background task
-        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "UploadSteps") {
-            // End the background task if iOS forces it to expire
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "UpdateAndUploadSteps") {
             UIApplication.shared.endBackgroundTask(backgroundTaskID)
             backgroundTaskID = .invalid
         }
 
-        // Fetch step data and perform the upload
         fetchStepData { [weak self] steps in
-            self?.uploadStepsToAPI(steps: steps) {
-                // When done, end the background task and call the completion handler
+            guard let self = self else {
                 UIApplication.shared.endBackgroundTask(backgroundTaskID)
-                backgroundTaskID = .invalid
+                completion()
+                return
+            }
+
+            // Update UI
+            DispatchQueue.main.async {
+                self.lastUpdateTime = Date()
+                self.sendEvent("onStepsUpdate", [
+                    "steps": steps,
+                    "lastUpdate": self.lastUpdateTime.map { self.iso8601Formatter.string(from: $0) } ?? ""
+                ])
+            }
+
+            // Upload to API
+            self.uploadStepsToAPI(steps: steps) {
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 completion()
             }
         }
     }
 
-    // Function to fetch the latest step data from HealthKit
     private func fetchStepData(completion: @escaping (Double) -> Void) {
-        guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else { return }
+        guard let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount) else {
+            completion(0)
+            return
+        }
 
         let now = Date()
         let startOfDay = Calendar.current.startOfDay(for: now)
@@ -140,26 +158,21 @@ public class MyModule: Module {
         healthStore?.execute(query)
     }
 
-    private func stopHealthKitTracking() {
-        if let query = self.query {
-            healthStore?.stop(query)
-            self.query = nil
-        }
-    }
-
     private func uploadStepsToAPI(steps: Double, completion: @escaping () -> Void) {
         guard let apiUrl = self.apiUrl, let apiKey = self.apiKey else {
             print("No API URL or API key available")
+            completion()
             return
         }
 
         let bodyData: [String: Any] = [
-            "created_at": ISO8601DateFormatter().string(from: Date()),
-            "steps-ios": Int(round(steps))
+            "created_at": iso8601Formatter.string(from: Date()),
+            "steps-device": Int(round(steps))
         ]
 
         guard let url = URL(string: apiUrl) else {
             print("Invalid API URL")
+            completion()
             return
         }
 
@@ -172,7 +185,6 @@ public class MyModule: Module {
             let jsonData = try JSONSerialization.data(withJSONObject: bodyData, options: [])
             request.httpBody = jsonData
 
-            // Upload data in the background
             let task = URLSession.shared.dataTask(with: request) { data, response, error in
                 if let error = error {
                     print("Failed to upload steps: \(error.localizedDescription)")
@@ -188,6 +200,13 @@ public class MyModule: Module {
         } catch {
             print("Error uploading steps: \(error.localizedDescription)")
             completion()
+        }
+    }
+
+    private func stopHealthKitTracking() {
+        if let query = self.query {
+            healthStore?.stop(query)
+            self.query = nil
         }
     }
 }
