@@ -53,19 +53,15 @@ const {
         HEALTH_CLINIC_SHARE;
   
       // Add UIBackgroundModes for HealthKit and background fetch
-      const backgroundModes = config.modResults.UIBackgroundModes || [];
-      if (!backgroundModes.includes('fetch')) {
-        backgroundModes.push('fetch');
-      }
-      if (!backgroundModes.includes('remote-notifications')) {
-        backgroundModes.push('remote-notifications');
-      }
-      if (!backgroundModes.includes('processing')) {
-        backgroundModes.push('processing');
-      }
-      config.modResults.UIBackgroundModes = backgroundModes;
+      const requiredModes = ['fetch', 'remote-notification', 'processing'];
+      const backgroundModes = new Set(config.modResults.UIBackgroundModes || []);
+      
+      requiredModes.forEach(mode => backgroundModes.add(mode));
+      
+      config.modResults.UIBackgroundModes = Array.from(backgroundModes);
   
       console.log('Info.plist modified successfully.');
+      console.log('UIBackgroundModes:', config.modResults.UIBackgroundModes);
   
       return config;
     });

@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "rounded steps"
+git commit -m "added background capabilities"
 git push -u origin main

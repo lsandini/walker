@@ -36,3 +36,6 @@ dist/
 # typescript
 *.tsbuildinfo
 eas.json
+
+ios/
+android/
