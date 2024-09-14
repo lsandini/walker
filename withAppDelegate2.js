@@ -186,7 +186,7 @@ function modifyAppDelegate(appDelegatePath) {
 @end
 `;
 
-  fs.writeFile(appDelegatePath, newAppDelegateContent);
+  fs.writeFileSync(appDelegatePath, newAppDelegateContent);
 }
 
 const withAppDelegate = (config) => {
