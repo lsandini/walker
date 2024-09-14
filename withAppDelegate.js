@@ -22,8 +22,11 @@ function modifyAppDelegate(appDelegatePath) {
   // Request HealthKit authorization
   [self requestHealthKitAuthorization];
   
-  // Set minimum background fetch interval
-  [application setMinimumBackgroundFetchInterval:UIApplicationBackgroundFetchIntervalMinimum];
+  // Set minimum background fetch interval (default string)
+  //[application setMinimumBackgroundFetchInterval:UIApplicationBackgroundFetchIntervalMinimum];
+
+  // Set minimum background fetch interval (you decide)
+  [application setMinimumBackgroundFetchInterval:15 * 60]; // 15 minutes
 
   return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
