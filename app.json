@@ -17,7 +17,7 @@
       "infoPlist": {
         "NSHealthShareUsageDescription": "This app uses HealthKit to access your step count.",
         "NSHealthUpdateUsageDescription": "This app uses HealthKit to track your steps.",
-        "UIBackgroundModes": ["fetch", "remote-notification", "processing", "location"]
+        "UIBackgroundModes": ["fetch", "remote-notification", "processing"]
       }
     },
     "android": {
@@ -35,7 +35,8 @@
       }
     },
     "plugins": [
-      "./withEntitlementsPlist.js",
+      ["./withAppDelegate.js"],
+      ["./withEntitlementsPlist.js"],
       [
         "expo-build-properties",
         {
