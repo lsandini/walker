@@ -2,4 +2,4 @@
 
 git add .
 git commit -m "try without plugin"
-git push -u origin main
+git push -u origin silent
