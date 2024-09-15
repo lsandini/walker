@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "plugin 3, edit not overwrite"
+git commit -m "new icon"
 git push -u origin main
