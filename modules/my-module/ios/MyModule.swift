@@ -70,10 +70,15 @@ public class MyModule: Module {
         healthStore?.requestAuthorization(toShare: [], read: [stepType]) { (success, error) in
             if success {
                 self.startObservingSteps()
+                self.scheduleBackgroundRefresh() // Add this line
             } else if let error = error {
                 print("HealthKit authorization failed: \(error.localizedDescription)")
             }
         }
+    }
+
+    private func scheduleBackgroundRefresh() {
+        UIApplication.shared.setMinimumBackgroundFetchInterval(15 * 60)  // 15 minutes
     }
 
     private func startObservingSteps() {
@@ -207,6 +212,12 @@ public class MyModule: Module {
         if let query = self.query {
             healthStore?.stop(query)
             self.query = nil
+        }
+    }
+
+    public func performBackgroundFetch(completion: @escaping (UIBackgroundFetchResult) -> Void) {
+        handleStepUpdate {
+            completion(.newData)
         }
     }
 }
