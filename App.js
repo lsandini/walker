@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { requireNativeModule } from 'expo-modules-core';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
-import Constants from 'expo-constants';
 import * as TaskManager from 'expo-task-manager';
 
 const MyModule = requireNativeModule('MyModule');
@@ -37,22 +36,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Custom hook to get push tokens based on platform
 async function getPushToken() {
   if (Platform.OS === 'ios') {
     const token = await Notifications.getDevicePushTokenAsync();
     console.log('iOS Device Push Token:', token.data);
     return token;
-  } else if (Platform.OS === 'android') {
-    try {
-      const token = await Notifications.getExpoPushTokenAsync({
-        projectId: Constants.expoConfig.extra.eas.projectId,
-      });
-      console.log('Android Expo Push Token:', token.data);
-      return token;
-    } catch (error) {
-      console.error('Error getting Expo Push Token:', error);
-    }
   }
   return null;
 }
@@ -60,7 +48,7 @@ async function getPushToken() {
 async function registerForPushNotificationsAsync() {
   let token;
 
-  if (Device.isDevice) {
+  if (Device.isDevice && Platform.OS === 'ios') {
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
     if (existingStatus !== 'granted') {
@@ -75,17 +63,8 @@ async function registerForPushNotificationsAsync() {
     token = await getPushToken();
     console.log('Push Notification Token:', token);
   } else {
-    console.log('Must use physical device for Push Notifications');
-    alert('Must use physical device for Push Notifications');
-  }
-
-  if (Platform.OS === 'android') {
-    Notifications.setNotificationChannelAsync('default', {
-      name: 'default',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#FF231F7C',
-    });
+    console.log('Must use physical iOS device for Push Notifications');
+    alert('Must use physical iOS device for Push Notifications');
   }
 
   return token;
@@ -103,29 +82,31 @@ export default function App() {
   const responseListener = useRef();
 
   useEffect(() => {
-    registerForPushNotificationsAsync().then(token => {
-      if (token) {
-        setPushToken(token);
-        console.log('Push token set:', Platform.OS === 'ios' ? token.data : token.data);
-      } else {
-        console.log('No push token received');
-      }
-    });
+    if (Platform.OS === 'ios') {
+      registerForPushNotificationsAsync().then(token => {
+        if (token) {
+          setPushToken(token);
+          console.log('Push token set:', token.data);
+        } else {
+          console.log('No push token received');
+        }
+      });
 
-    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-    });
+      notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+        console.log('Notification received:', notification);
+      });
 
-    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
-    });
+      responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+        console.log('Notification response:', response);
+      });
 
-    Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+      Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
 
-    return () => {
-      Notifications.removeNotificationSubscription(notificationListener.current);
-      Notifications.removeNotificationSubscription(responseListener.current);
-    };
+      return () => {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+        Notifications.removeNotificationSubscription(responseListener.current);
+      };
+    }
   }, []);
 
   useEffect(() => {
@@ -199,7 +180,7 @@ export default function App() {
         <Text style={styles.resultText}>Current Step Count: {Math.round(stepCount)}</Text>
         <Text style={styles.resultText}>Last Update: {lastUpdateTime}</Text>
         <Text style={styles.resultText}>
-          Push Token: {pushToken ? (Platform.OS === 'ios' ? pushToken.data : pushToken.data) : 'No token yet'}
+          Push Token: {pushToken ? pushToken.data : 'No token yet'}
         </Text>
         {error && <Text style={styles.errorText}>{error}</Text>}
         <Button 
