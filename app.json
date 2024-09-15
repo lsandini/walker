@@ -35,7 +35,7 @@
       }
     },
     "plugins": [
-      ["./withAppDelegate.js"],
+      ["./withAppDelegate3.js"],
       ["./withEntitlementsPlist.js"],
       [
         "expo-build-properties",
