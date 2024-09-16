@@ -17,14 +17,27 @@ MyModule.setApiDetails(apiUrl, apiKey);
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
+  console.log('Background task executed');
   if (error) {
     console.error('Error in background task:', error);
     return;
   }
   if (data) {
-    console.log('Received silent push notification:', data);
-    // Trigger step upload
-    await MyModule.handleStepUpdate();
+    console.log('Received data in background task:', data);
+    try {
+      // Instead of calling handleStepUpdate, we'll use the available methods
+      await MyModule.startStepTracking();
+      const lastUpdateTime = await MyModule.getLastUpdateTime();
+      console.log('Step tracking started, last update time:', lastUpdateTime);
+      
+      // Wait for a short period to allow time for step counting
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      await MyModule.stopStepTracking();
+      console.log('Step tracking stopped');
+    } catch (error) {
+      console.error('Error handling step update:', error);
+    }
   }
 });
 
@@ -100,13 +113,35 @@ export default function App() {
         console.log('Notification response:', response);
       });
 
-      Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+      Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK).then(() => {
+        console.log('Background task registered successfully');
+      }).catch(error => {
+        console.error('Failed to register background task:', error);
+      });
 
       return () => {
         Notifications.removeNotificationSubscription(notificationListener.current);
         Notifications.removeNotificationSubscription(responseListener.current);
       };
     }
+  }, []);
+
+  useEffect(() => {
+    const backgroundSubscription = TaskManager.isTaskRegisteredAsync(BACKGROUND_NOTIFICATION_TASK).then((isRegistered) => {
+      if (isRegistered) {
+        console.log('Background task is registered');
+      } else {
+        console.log('Background task is not registered');
+      }
+    });
+  
+    return () => {
+      backgroundSubscription.then((subscription) => {
+        if (subscription) {
+          subscription.unsubscribe();
+        }
+      });
+    };
   }, []);
 
   useEffect(() => {
