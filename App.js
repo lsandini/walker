@@ -43,11 +43,19 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
 });
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: false,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    console.log('Received notification:', notification);
+    const isBackgroundNotification = notification.origin === 'selected' || notification.origin === 'received';
+    if (isBackgroundNotification) {
+      console.log('Processing background notification');
+      await MyModule.handleSilentPushNotification(notification.request.content.data);
+    }
+    return {
+      shouldShowAlert: notification.request.content.data.showAlert !== false,
+      shouldPlaySound: notification.request.content.data.playSound !== false,
+      shouldSetBadge: notification.request.content.data.setBadge !== false,
+    };
+  },
 });
 
 async function registerForPushNotificationsAsync() {
@@ -67,6 +75,9 @@ async function registerForPushNotificationsAsync() {
     }
     token = await Notifications.getDevicePushTokenAsync();
     console.log('Push Notification Token:', token);
+
+    // Register for silent push notifications
+    MyModule.registerForSilentPushNotifications();
   } else {
     console.log('Must use physical iOS device for Push Notifications');
     alert('Must use physical iOS device for Push Notifications');
@@ -99,6 +110,10 @@ export default function App() {
 
       notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
         console.log('Notification received:', notification);
+        if (notification.request.content.data.silent) {
+          console.log('Silent push notification received');
+          MyModule.handleSilentPushNotification(notification.request.content.data);
+        }
       });
 
       responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
