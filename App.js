@@ -9,8 +9,10 @@ import * as TaskManager from 'expo-task-manager';
 const MyModule = requireNativeModule('MyModule');
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 const apiKey = process.env.EXPO_PUBLIC_API_KEY;
+
 console.log('API URL:', apiUrl);
 console.log('API Key:', apiKey);
+
 // Pass the values to the native module
 MyModule.setApiDetails(apiUrl, apiKey);
 
@@ -25,7 +27,6 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
   if (data) {
     console.log('Received data in background task:', data);
     try {
-      // Instead of calling handleStepUpdate, we'll use the available methods
       await MyModule.startStepTracking();
       const lastUpdateTime = await MyModule.getLastUpdateTime();
       console.log('Step tracking started, last update time:', lastUpdateTime);
@@ -49,15 +50,6 @@ Notifications.setNotificationHandler({
   }),
 });
 
-async function getPushToken() {
-  if (Platform.OS === 'ios') {
-    const token = await Notifications.getDevicePushTokenAsync();
-    console.log('iOS Device Push Token:', token.data);
-    return token;
-  }
-  return null;
-}
-
 async function registerForPushNotificationsAsync() {
   let token;
 
@@ -73,7 +65,7 @@ async function registerForPushNotificationsAsync() {
       alert('Failed to get push token for push notification!');
       return;
     }
-    token = await getPushToken();
+    token = await Notifications.getDevicePushTokenAsync();
     console.log('Push Notification Token:', token);
   } else {
     console.log('Must use physical iOS device for Push Notifications');
@@ -118,6 +110,14 @@ export default function App() {
       }).catch(error => {
         console.error('Failed to register background task:', error);
       });
+
+      // Register background fetch
+      MyModule.registerBackgroundFetch();
+      console.log('Background fetch registered');
+
+      // Schedule background processing task
+      MyModule.scheduleBackgroundProcessingTask();
+      console.log('Background processing task scheduled');
 
       return () => {
         Notifications.removeNotificationSubscription(notificationListener.current);
