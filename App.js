@@ -119,6 +119,13 @@ export default function App() {
       MyModule.scheduleBackgroundProcessingTask();
       console.log('Background processing task scheduled');
 
+      // Setup HealthKit background delivery
+      MyModule.setupHealthKitBackgroundDelivery().then(() => {
+        console.log('HealthKit background delivery setup successfully');
+      }).catch(error => {
+        console.error('Failed to setup HealthKit background delivery:', error);
+      });
+
       return () => {
         Notifications.removeNotificationSubscription(notificationListener.current);
         Notifications.removeNotificationSubscription(responseListener.current);

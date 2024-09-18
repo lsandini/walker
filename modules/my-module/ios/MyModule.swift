@@ -50,14 +50,21 @@ public class MyModule: Module {
             return self.iso8601Formatter.string(from: lastUpdateTime)
         }
         
-        // New function to register background fetch
         Function("registerBackgroundFetch") {
             self.registerBackgroundFetch()
         }
         
-        // New function to schedule background processing task
         Function("scheduleBackgroundProcessingTask") {
             self.scheduleBackgroundProcessingTask()
+        }
+        
+        AsyncFunction("setupHealthKitBackgroundDelivery") { () -> String in
+            do {
+                try self.setupHealthKitBackgroundDelivery()
+                return "HealthKit background delivery setup successfully"
+            } catch {
+                throw error
+            }
         }
         
         Events("onStepsUpdate")
@@ -87,6 +94,26 @@ public class MyModule: Module {
         }
     }
     
+    private func setupHealthKitBackgroundDelivery() throws {
+        guard HKHealthStore.isHealthDataAvailable() else {
+            throw NSError(domain: "HealthKit", code: 0, userInfo: [NSLocalizedDescriptionKey: "HealthKit is not available on this device"])
+        }
+        
+        healthStore = HKHealthStore()
+        
+        guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
+            throw NSError(domain: "HealthKit", code: 1, userInfo: [NSLocalizedDescriptionKey: "Step count is not available"])
+        }
+        
+        healthStore?.requestAuthorization(toShare: [], read: [stepType]) { [weak self] (success, error) in
+            if success {
+                self?.setupBackgroundDelivery(for: stepType)
+            } else if let error = error {
+                print("HealthKit authorization failed: \(error.localizedDescription)")
+            }
+        }
+    }
+    
     // MARK: - Step Tracking
     
     private func startObservingSteps() {
@@ -110,6 +137,30 @@ public class MyModule: Module {
         healthStore?.enableBackgroundDelivery(for: stepType, frequency: .immediate) { (success, error) in
             if let error = error {
                 print("Failed to enable background delivery: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func setupBackgroundDelivery(for stepType: HKQuantityType) {
+        let query = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] (query, completionHandler, error) in
+            guard error == nil else {
+                print("Error in background delivery: \(error!.localizedDescription)")
+                completionHandler()
+                return
+            }
+            
+            self?.handleStepUpdate {
+                completionHandler()
+            }
+        }
+        
+        healthStore?.execute(query)
+        
+        healthStore?.enableBackgroundDelivery(for: stepType, frequency: .immediate) { (success, error) in
+            if let error = error {
+                print("Failed to enable background delivery: \(error.localizedDescription)")
+            } else if success {
+                print("Background delivery enabled successfully")
             }
         }
     }
@@ -213,7 +264,7 @@ public class MyModule: Module {
     private func registerBackgroundFetch() {
         UIApplication.shared.setMinimumBackgroundFetchInterval(15 * 60) // 15 minutes in seconds
     }
-
+    
     private func scheduleBackgroundProcessingTask() {
         let request = BGProcessingTaskRequest(identifier: "com.lsandini.walker.stepupdate")
         request.requiresNetworkConnectivity = true
