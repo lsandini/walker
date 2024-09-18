@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "logs for silent PN"
+git commit -m "restore previous commit - GPT10"
 git push -u origin silent

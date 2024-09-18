@@ -2,7 +2,6 @@ import ExpoModulesCore
 import HealthKit
 import UIKit
 import BackgroundTasks
-import UserNotifications
 
 public class MyModule: Module {
     private var healthStore: HKHealthStore?
@@ -66,14 +65,6 @@ public class MyModule: Module {
             } catch {
                 throw error
             }
-        }
-
-        Function("registerForSilentPushNotifications") {
-            self.registerForSilentPushNotifications()
-        }
-
-        AsyncFunction("handleSilentPushNotification") { (userInfo: [AnyHashable: Any]) in
-            self.handleSilentPushNotification(userInfo: userInfo)
         }
         
         Events("onStepsUpdate")
@@ -175,16 +166,16 @@ public class MyModule: Module {
     }
     
     private func handleStepUpdate(completion: @escaping () -> Void) {
-        var backgroundTask: UIBackgroundTaskIdentifier = .invalid
-        backgroundTask = UIApplication.shared.beginBackgroundTask {
-            UIApplication.shared.endBackgroundTask(backgroundTask)
-            backgroundTask = .invalid
+        var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
+        
+        backgroundTaskID = UIApplication.shared.beginBackgroundTask {
+            UIApplication.shared.endBackgroundTask(backgroundTaskID)
+            backgroundTaskID = .invalid
         }
         
         fetchStepData { [weak self] steps in
             guard let self = self else {
-                UIApplication.shared.endBackgroundTask(backgroundTask)
-                backgroundTask = .invalid
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 completion()
                 return
             }
@@ -198,8 +189,7 @@ public class MyModule: Module {
             }
             
             self.uploadStepsToAPI(steps: steps) {
-                UIApplication.shared.endBackgroundTask(backgroundTask)
-                backgroundTask = .invalid
+                UIApplication.shared.endBackgroundTask(backgroundTaskID)
                 completion()
             }
         }
@@ -275,51 +265,45 @@ public class MyModule: Module {
     // MARK: - Background Tasks
     
     private func registerBackgroundFetch() {
-        UIApplication.shared.setMinimumBackgroundFetchInterval(15 * 60) // 15 minutes in seconds
-    }
-    
-    private func scheduleBackgroundProcessingTask() {
-        let request = BGProcessingTaskRequest(identifier: "com.lsandini.walker.stepupdate")
-        request.requiresNetworkConnectivity = true
-        request.requiresExternalPower = false
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60) // 15 minutes from now
-        
-        do {
-            try BGTaskScheduler.shared.submit(request)
-        } catch {
-            print("Could not schedule background processing task: \(error)")
+        if #available(iOS 13.0, *) {
+            let request = BGAppRefreshTaskRequest(identifier: "com.lsandini.walker.backgroundfetch")
+            request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60) // 15 minutes from now
+            do {
+                try BGTaskScheduler.shared.submit(request)
+            } catch {
+                print("Could not schedule app refresh: \(error)")
+            }
+        } else {
+            // Fallback on earlier versions
+            UIApplication.shared.setMinimumBackgroundFetchInterval(15 * 60) // 15 minutes in seconds
         }
     }
     
-    public func handleBackgroundProcessingTask(task: BGProcessingTask) {
+    private func scheduleBackgroundProcessingTask() {
+        if #available(iOS 13.0, *) {
+            let request = BGProcessingTaskRequest(identifier: "com.lsandini.walker.stepupdate")
+            request.requiresNetworkConnectivity = true
+            request.requiresExternalPower = false
+            request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60) // 15 minutes from now
+            
+            do {
+                try BGTaskScheduler.shared.submit(request)
+            } catch {
+                print("Could not schedule background processing task: \(error)")
+            }
+        }
+    }
+    
+    @available(iOS 13.0, *)
+    public func handleBackgroundTask(task: BGTask) {
+        scheduleBackgroundProcessingTask()
+        
         task.expirationHandler = {
             task.setTaskCompleted(success: false)
         }
         
         handleStepUpdate {
             task.setTaskCompleted(success: true)
-            self.scheduleBackgroundProcessingTask() // Schedule the next task
-        }
-    }
-    
-    // MARK: - Silent Push Notifications
-    
-    private func registerForSilentPushNotifications() {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-            if granted {
-                DispatchQueue.main.async {
-                    UIApplication.shared.registerForRemoteNotifications()
-                }
-            }
-        }
-    }
-
-    public func handleSilentPushNotification(userInfo: [AnyHashable: Any]) {
-        print("Received silent push notification: \(userInfo)")
-        
-        // Perform step count update
-        handleStepUpdate {
-            print("Silent push notification handling completed")
         }
     }
     
