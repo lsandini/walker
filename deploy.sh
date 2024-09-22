@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "second try with mock upload"
+git commit -m "background + silent PN work !"
 git push -u origin silent2
