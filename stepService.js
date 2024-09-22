@@ -31,14 +31,24 @@ export const fetchStepCountFromHealthKit = async () => {
 
 export const uploadStepCountToAPI = async (steps) => {
   try {
-    const response = await fetch('https://your-api-url.com/upload-steps', {
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+    const apiSecret = process.env.EXPO_PUBLIC_API_KEY; // Assuming API_KEY is used as the secret
+
+    if (!apiUrl || !apiSecret) {
+      throw new Error('API URL or API Secret is not defined in environment variables');
+    }
+
+    console.log(`Uploading step count to API: ${steps} steps`);
+
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'api-secret': apiSecret,
       },
       body: JSON.stringify({
-        stepCount: steps,
-        timestamp: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        'steps-device': steps,
       }),
     });
 
@@ -47,7 +57,9 @@ export const uploadStepCountToAPI = async (steps) => {
       throw new Error(`Failed to upload step count. Status: ${response.status}, Response: ${responseText}`);
     }
 
-    console.log(`Step count (${steps}) uploaded successfully`);
+    const responseData = await response.json();
+    console.log(`Step count (${steps}) uploaded successfully. Response:`, responseData);
+    return responseData;
   } catch (error) {
     console.error('Error uploading step count:', error);
     throw error;
