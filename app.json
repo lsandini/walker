@@ -17,7 +17,10 @@
       "infoPlist": {
         "NSHealthShareUsageDescription": "This app uses HealthKit to access your step count.",
         "NSHealthUpdateUsageDescription": "This app uses HealthKit to track your steps.",
-        "UIBackgroundModes": ["fetch", "remote-notification", "processing"]
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -35,7 +38,9 @@
       }
     },
     "plugins": [
-      ["./withEntitlementsPlist.js"],
+      [
+        "./withEntitlementsPlist.js"
+      ],
       [
         "expo-build-properties",
         {
@@ -49,7 +54,8 @@
             "deploymentTarget": "14.0"
           }
         }
-      ]
+      ],
+      "react-native-health"
     ]
   }
 }

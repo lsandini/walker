@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "restore previous commit - GPT10"
-git push -u origin silent
+git commit -m "init"
+git push -u origin silent2
