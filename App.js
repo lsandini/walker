@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Button } from 'react-native';
+import { View, Text, Button, StyleSheet, ScrollView } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
-import HealthKit from 'react-native-health'; // Assuming react-native-health is linked
+import AppleHealthKit from 'react-native-health';
 import { uploadStepCountToAPI, fetchStepCountFromHealthKit } from './stepService';
 
 const STEP_COUNT_FETCH_TASK = 'STEP_COUNT_FETCH_TASK';
@@ -23,11 +23,25 @@ export default function App() {
   }, []);
 
   const requestPermissions = async () => {
-    const healthKitGranted = await HealthKit.requestAuthorization(['StepCount'], ['StepCount']);
-    if (healthKitGranted) {
-      console.log('HealthKit permission granted');
-    }
+    const permissions = {
+      permissions: {
+        read: [
+          AppleHealthKit.Constants.Permissions.Steps, // Correct permission for step count
+        ],
+        write: [],
+      },
+    };
 
+    // Request HealthKit permissions
+    AppleHealthKit.initHealthKit(permissions, (err, results) => {
+      if (err) {
+        console.log("HealthKit permission not granted:", err);
+        return;
+      }
+      console.log("HealthKit permission granted:", results);
+    });
+
+    // Request Notification permissions
     const { status: notificationStatus } = await Notifications.requestPermissionsAsync();
     if (notificationStatus !== 'granted') {
       console.log('Notification permission not granted');
@@ -75,15 +89,41 @@ export default function App() {
   };
 
   return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <Text>Last Step Count: {stepCount}</Text>
-      <Text>Last Background Fetch Time: {lastFetchTime ? lastFetchTime.toLocaleTimeString() : 'Not fetched yet'}</Text>
-      <Text>Last Silent Push Notification Time: {lastSilentPushTime ? lastSilentPushTime.toLocaleTimeString() : 'Not received yet'}</Text>
-      <Text>Device Token: {deviceToken || 'Not available'}</Text>
-      <Text>Background Fetch Triggered: {fetchTriggered ? 'Yes' : 'No'}</Text>
-      <Text>Silent Push Triggered: {silentPushTriggered ? 'Yes' : 'No'}</Text>
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={styles.title}>HealthKit Step Tracker</Text>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Last Step Count:</Text>
+        <Text style={styles.data}>{stepCount}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Last Background Fetch Time:</Text>
+        <Text style={styles.data}>{lastFetchTime ? lastFetchTime.toLocaleTimeString() : 'Not fetched yet'}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Last Silent Push Notification Time:</Text>
+        <Text style={styles.data}>{lastSilentPushTime ? lastSilentPushTime.toLocaleTimeString() : 'Not received yet'}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Device Token:</Text>
+        <Text style={styles.data}>{deviceToken || 'Not available'}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Background Fetch Triggered:</Text>
+        <Text style={styles.data}>{fetchTriggered ? 'Yes' : 'No'}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Silent Push Triggered:</Text>
+        <Text style={styles.data}>{silentPushTriggered ? 'Yes' : 'No'}</Text>
+      </View>
+
       <Button title="Manually Fetch Steps" onPress={() => processAndUploadSteps('manual')} />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -97,4 +137,42 @@ TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
     console.error('Background fetch task failed:', error);
     return BackgroundFetch.Result.Failed;
   }
+});
+
+const styles = StyleSheet.create({
+  container: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#f2f2f2',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 20,
+  },
+  infoBox: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  data: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#000',
+    marginTop: 5,
+  },
 });

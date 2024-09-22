@@ -1,4 +1,4 @@
-import HealthKit from 'react-native-health';
+import AppleHealthKit from 'react-native-health'; // Assuming react-native-health is linked
 
 // Function to fetch step count from HealthKit
 export const fetchStepCountFromHealthKit = async () => {
@@ -9,10 +9,18 @@ export const fetchStepCountFromHealthKit = async () => {
       endDate: new Date(), // Current time
     };
 
-    const stepCountData = await HealthKit.getStepCount(options);
-    const steps = stepCountData?.value || 0;
-    console.log(`Fetched step count: ${steps}`);
-    return steps;
+    return new Promise((resolve, reject) => {
+      AppleHealthKit.getStepCount(options, (err, result) => {
+        if (err) {
+          console.error('Error fetching step count from HealthKit:', err);
+          return reject(0); // Return 0 on error
+        }
+        
+        const steps = result?.value || 0;
+        console.log(`Fetched step count: ${steps}`);
+        resolve(steps); // Resolve with the fetched step count
+      });
+    });
   } catch (error) {
     console.error('Error fetching step count from HealthKit:', error);
     return 0; // Return 0 if there's an error
