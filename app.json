@@ -39,9 +39,6 @@
     },
     "plugins": [
       [
-        "./withEntitlementsPlist.js"
-      ],
-      [
         "expo-build-properties",
         {
           "android": {
@@ -55,7 +52,12 @@
           }
         }
       ],
-      "react-native-health"
+      [      
+        "react-native-health"
+      ],
+      [
+        "./withEntitlementsPlist.js"
+      ]
     ]
   }
 }

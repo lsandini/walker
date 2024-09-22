@@ -8,6 +8,37 @@ import { uploadStepCountToAPI, fetchStepCountFromHealthKit } from './stepService
 
 const STEP_COUNT_FETCH_TASK = 'STEP_COUNT_FETCH_TASK';
 
+// Move processAndUploadSteps outside the component for proper access in background task
+const processAndUploadSteps = async (triggerType) => {
+  console.log(`Processing step count from trigger: ${triggerType}`);
+  try {
+    const stepCountData = await fetchStepCountFromHealthKit();
+    const steps = stepCountData || 0;
+    console.log(`Fetched step count: ${steps}`);
+    await uploadStepCountToAPI(steps); // Always upload the step count
+
+    if (triggerType === 'fetch') {
+      console.log('Background fetch processed');
+    } else if (triggerType === 'silent') {
+      console.log('Silent push processed');
+    }
+  } catch (error) {
+    console.error(`Error processing steps from ${triggerType}:`, error);
+  }
+};
+
+// Define background task outside the component
+TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
+  try {
+    console.log('Background fetch task is running');
+    await processAndUploadSteps('fetch');
+    return BackgroundFetch.Result.NewData;
+  } catch (error) {
+    console.error('Background fetch task failed:', error);
+    return BackgroundFetch.Result.Failed;
+  }
+});
+
 export default function App() {
   const [stepCount, setStepCount] = useState(0);
   const [lastFetchTime, setLastFetchTime] = useState(null);
@@ -17,17 +48,17 @@ export default function App() {
   const [silentPushTriggered, setSilentPushTriggered] = useState(false);
 
   useEffect(() => {
+    console.log('App mounted');
     requestPermissions();
     registerBackgroundFetchTask();
     registerForPushNotificationsAsync();
   }, []);
 
   const requestPermissions = async () => {
+    console.log('Requesting HealthKit and Notification permissions');
     const permissions = {
       permissions: {
-        read: [
-          AppleHealthKit.Constants.Permissions.Steps, // Correct permission for step count
-        ],
+        read: [AppleHealthKit.Constants.Permissions.Steps],
         write: [],
       },
     };
@@ -45,46 +76,50 @@ export default function App() {
     const { status: notificationStatus } = await Notifications.requestPermissionsAsync();
     if (notificationStatus !== 'granted') {
       console.log('Notification permission not granted');
+    } else {
+      console.log('Notification permission granted');
     }
   };
 
   const registerForPushNotificationsAsync = async () => {
+    console.log('Registering for push notifications');
     const { data: token } = await Notifications.getDevicePushTokenAsync();
     setDeviceToken(token); // Store the device token for display
     console.log('APNS device token:', token);
-
+  
     Notifications.setNotificationHandler({
       handleNotification: async (notification) => {
-        const isSilent = notification.request.content.data.silent;
-        if (isSilent) {
-          console.log('Silent push received');
-          setSilentPushTriggered(true);
-          await processAndUploadSteps('silent');
-          return { shouldShowAlert: false };
-        }
+        const payload = JSON.stringify(notification, null, 2);
+        console.log('Notification received:', payload);
         return { shouldShowAlert: true };
       },
+    });
+  
+    Notifications.addNotificationReceivedListener((notification) => {
+      console.log('Notification received (foreground):', JSON.stringify(notification, null, 2));
+    });
+  
+    Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log('Notification response received:', JSON.stringify(response, null, 2));
     });
   };
 
   const registerBackgroundFetchTask = async () => {
-    await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
-      minimumInterval: 15 * 60, // 15 minutes
-      stopOnTerminate: false,
-      startOnBoot: true,
-    });
-  };
+    try {
+      console.log('Registering background fetch task');
+      const status = await BackgroundFetch.getStatusAsync();
+      console.log('Background fetch status:', status);
 
-  const processAndUploadSteps = async (triggerType) => {
-    const stepCountData = await fetchStepCountFromHealthKit();
-    const steps = stepCountData || 0;
-    setStepCount(steps); // Update state to display in UI
-    await uploadStepCountToAPI(steps); // Always upload the step count
+      await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
+        minimumInterval: 15 * 60, // 15 minutes
+        stopOnTerminate: false,
+        startOnBoot: true,
+      });
 
-    if (triggerType === 'fetch') {
-      setLastFetchTime(new Date());
-    } else if (triggerType === 'silent') {
-      setLastSilentPushTime(new Date());
+      const tasks = await TaskManager.getRegisteredTasksAsync();
+      console.log('Registered tasks:', tasks);
+    } catch (error) {
+      console.error('Error registering background fetch task:', error);
     }
   };
 
@@ -126,18 +161,6 @@ export default function App() {
     </ScrollView>
   );
 }
-
-// Task Manager for background fetch
-TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
-  try {
-    console.log('Background fetch task running');
-    await processAndUploadSteps('fetch'); // Mark fetch type as 'fetch'
-    return BackgroundFetch.Result.NewData;
-  } catch (error) {
-    console.error('Background fetch task failed:', error);
-    return BackgroundFetch.Result.Failed;
-  }
-});
 
 const styles = StyleSheet.create({
   container: {

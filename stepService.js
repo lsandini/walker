@@ -9,13 +9,15 @@ export const fetchStepCountFromHealthKit = async () => {
       endDate: new Date(), // Current time
     };
 
+    console.log('Fetching step count with options:', options);
+
     return new Promise((resolve, reject) => {
       AppleHealthKit.getStepCount(options, (err, result) => {
         if (err) {
           console.error('Error fetching step count from HealthKit:', err);
           return reject(0); // Return 0 on error
         }
-        
+
         const steps = result?.value || 0;
         console.log(`Fetched step count: ${steps}`);
         resolve(steps); // Resolve with the fetched step count
@@ -26,6 +28,7 @@ export const fetchStepCountFromHealthKit = async () => {
     return 0; // Return 0 if there's an error
   }
 };
+
 
 // Function to upload step count to the API
 export const uploadStepCountToAPI = async (steps) => {
