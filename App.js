@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Button, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, Button, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
 import AppleHealthKit from 'react-native-health';
+import * as Clipboard from 'expo-clipboard';
 import { uploadStepCountToAPI, fetchStepCountFromHealthKit } from './stepService';
 
 // Global error handler
@@ -233,6 +234,15 @@ export default function App() {
     }).format(date);
   };
 
+  const copyToClipboard = async () => {
+    if (deviceToken) {
+      await Clipboard.setStringAsync(deviceToken);
+      Alert.alert('Copied!', 'Device token copied to clipboard');
+    } else {
+      Alert.alert('Error', 'No device token available to copy');
+    }
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>HealthKit Step Tracker</Text>
@@ -252,9 +262,14 @@ export default function App() {
         <Text style={styles.data}>{formatDate(lastSilentPushTime)}</Text>
       </View>
 
-      <View style={styles.infoBox}>
+      <View style={styles.infoBoxToken}>
         <Text style={styles.label}>Device Token:</Text>
-        <Text style={styles.data}>{deviceToken || 'Not available'}</Text>
+        <Text style={styles.data} numberOfLines={1} ellipsizeMode="middle">
+          {deviceToken || 'Not available'}
+        </Text>
+        <TouchableOpacity onPress={copyToClipboard} style={styles.copyButton}>
+          <Text style={styles.copyButtonText}>Copy</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.infoBox}>
@@ -297,15 +312,41 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 2,
   },
+  infoBoxToken: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 5,
+    elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   label: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
+    flex: 1,
   },
   data: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#000',
-    marginTop: 5,
+    flex: 2,
+    marginRight: 10,
+  },
+  copyButton: {
+    backgroundColor: '#007AFF',
+    padding: 5,
+    borderRadius: 5,
+  },
+  copyButtonText: {
+    color: 'white',
+    fontSize: 12,
   },
 });
