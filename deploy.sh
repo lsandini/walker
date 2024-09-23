@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "copy-paste token"
+git commit -m "fix update on silent"
 git push -u origin silent2

@@ -76,11 +76,12 @@ export default function App() {
 
   const updateState = useCallback((steps, time, triggerType) => {
     setStepCount(steps);
-    setLastFetchTime(time);
+    
     if (triggerType === 'silent') {
       setLastSilentPushTime(time);
       setSilentPushTriggered(true);
     } else if (triggerType === 'fetch' || triggerType === 'manual') {
+      setLastFetchTime(time);
       setFetchTriggered(true);
     }
   }, []);
