@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "fixed api upload"
+git commit -m "date format and round steps"
 git push -u origin silent2

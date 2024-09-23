@@ -18,7 +18,7 @@ export const fetchStepCountFromHealthKit = async () => {
           return;
         }
 
-        const steps = result?.value || 0;
+        const steps = Math.round(result?.value || 0); // Round to the nearest integer
         console.log(`Fetched step count: ${steps}`);
         resolve(steps);
       });

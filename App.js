@@ -221,6 +221,18 @@ export default function App() {
     }
   };
 
+  const formatDate = (date) => {
+    if (!date) return 'Not fetched yet';
+    return new Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      hour12: true
+    }).format(date);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>HealthKit Step Tracker</Text>
@@ -232,12 +244,12 @@ export default function App() {
 
       <View style={styles.infoBox}>
         <Text style={styles.label}>Last Background Fetch Time:</Text>
-        <Text style={styles.data}>{lastFetchTime ? lastFetchTime.toLocaleTimeString() : 'Not fetched yet'}</Text>
+        <Text style={styles.data}>{formatDate(lastFetchTime)}</Text>
       </View>
 
       <View style={styles.infoBox}>
         <Text style={styles.label}>Last Silent Push Notification Time:</Text>
-        <Text style={styles.data}>{lastSilentPushTime ? lastSilentPushTime.toLocaleTimeString() : 'Not received yet'}</Text>
+        <Text style={styles.data}>{formatDate(lastSilentPushTime)}</Text>
       </View>
 
       <View style={styles.infoBox}>
