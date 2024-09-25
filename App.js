@@ -43,10 +43,18 @@ TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
     console.log('Background fetch task is running');
     const steps = await processAndUploadSteps('fetch');
     console.log('Background fetch completed. Steps:', steps);
-    return steps ? BackgroundFetch.Result.NewData : BackgroundFetch.Result.NoData;
+    
+    // Check if BackgroundFetch.Result is available
+    if (BackgroundFetch.Result) {
+      return steps ? BackgroundFetch.Result.NewData : BackgroundFetch.Result.NoData;
+    } else {
+      // Fallback to numeric values if enum is not available
+      return steps ? 2 : 1; // 2 for NewData, 1 for NoData
+    }
   } catch (error) {
     console.error('Background fetch task failed:', error);
-    return BackgroundFetch.Result.Failed;
+    // Return Failed (3) if BackgroundFetch.Result is not available
+    return BackgroundFetch.Result ? BackgroundFetch.Result.Failed : 3;
   }
 });
 
@@ -95,17 +103,18 @@ export default function App() {
 
   useEffect(() => {
     console.log('App mounted');
+    let subscriptions = [];
     const setupApp = async () => {
       await requestPermissions();
       await registerBackgroundFetchTask();
-      await registerForPushNotificationsAsync();
+      subscriptions = await registerForPushNotificationsAsync();
       await setupBackgroundNotificationHandler();
     };
 
     setupApp();
 
     return () => {
-      Notifications.removeAllNotificationListeners();
+      subscriptions.forEach(subscription => subscription.remove());
     };
   }, []);
 
@@ -167,10 +176,7 @@ export default function App() {
       console.log('Notification response received:', JSON.stringify(response, null, 2));
     });
 
-    return () => {
-      foregroundSubscription.remove();
-      responseSubscription.remove();
-    };
+    return [foregroundSubscription, responseSubscription];
   };
 
   const setupBackgroundNotificationHandler = async () => {
@@ -181,27 +187,27 @@ export default function App() {
   const registerBackgroundFetchTask = async () => {
     try {
       console.log('Registering background fetch task');
-      console.log('BackgroundFetch object:', BackgroundFetch);
-      console.log('BackgroundFetch.Status:', BackgroundFetch.Status);
-
+      console.log('BackgroundFetch object keys:', Object.keys(BackgroundFetch));
+      console.log('BackgroundFetchStatus:', BackgroundFetch.BackgroundFetchStatus);
+  
       const status = await BackgroundFetch.getStatusAsync();
       console.log('Background fetch status:', status);
-
-      // Check if status is Available (3) or if BackgroundFetch.Status.Available is defined
-      if (status === 3 || (BackgroundFetch.Status && status === BackgroundFetch.Status.Available)) {
+  
+      if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
         await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
-          minimumInterval: 15 * 60, // 15 minutes
+          minimumInterval: 5 * 60, // 12 minutes
           stopOnTerminate: false,
           startOnBoot: true,
         });
-
-        // For testing purposes, set a shorter interval (remove before production)
-        // await BackgroundFetch.setMinimumIntervalAsync(1);
-
+  
         const tasks = await TaskManager.getRegisteredTasksAsync();
         console.log('Registered tasks:', tasks);
       } else {
-        console.log('Background fetch is not available on this device. Status:', status);
+        console.log('Background fetch is not available. Status:', 
+          Object.keys(BackgroundFetch.BackgroundFetchStatus).find(key => 
+            BackgroundFetch.BackgroundFetchStatus[key] === status
+          )
+        );
       }
     } catch (error) {
       console.error('Error registering background fetch task:', error);
