@@ -195,7 +195,7 @@ export default function App() {
   
       if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
         await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
-          minimumInterval: 5 * 60, // 12 minutes
+          minimumInterval: 15 * 60, // 15 minutes
           stopOnTerminate: false,
           startOnBoot: true,
         });
