@@ -13,8 +13,8 @@ ErrorUtils.setGlobalHandler((error, isFatal) => {
   // You can add more error reporting logic here
 });
 
-const STEP_COUNT_FETCH_TASK = 'STEP_COUNT_FETCH_TASK';
-const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND_NOTIFICATION_TASK';
+const STEP_COUNT_FETCH_TASK = 'com.lsandini.walker.fetch';
+const BACKGROUND_NOTIFICATION_TASK = 'com.lsandini.walker.notification';
 
 let updateAppState = null;
 
@@ -41,19 +41,16 @@ const processAndUploadSteps = async (triggerType) => {
 TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
   try {
     console.log('Background fetch task is running');
-    const steps = await processAndUploadSteps('fetch');
+    const steps = await processAndUploadSteps('background');
     console.log('Background fetch completed. Steps:', steps);
     
-    // Check if BackgroundFetch.Result is available
     if (BackgroundFetch.Result) {
       return steps ? BackgroundFetch.Result.NewData : BackgroundFetch.Result.NoData;
     } else {
-      // Fallback to numeric values if enum is not available
       return steps ? 2 : 1; // 2 for NewData, 1 for NoData
     }
   } catch (error) {
     console.error('Background fetch task failed:', error);
-    // Return Failed (3) if BackgroundFetch.Result is not available
     return BackgroundFetch.Result ? BackgroundFetch.Result.Failed : 3;
   }
 });
@@ -76,21 +73,30 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, execu
 
 export default function App() {
   const [stepCount, setStepCount] = useState(0);
-  const [lastFetchTime, setLastFetchTime] = useState(null);
+  const [lastManualFetchTime, setLastManualFetchTime] = useState(null);
+  const [lastBackgroundFetchTime, setLastBackgroundFetchTime] = useState(null);
   const [lastSilentPushTime, setLastSilentPushTime] = useState(null);
   const [deviceToken, setDeviceToken] = useState('');
-  const [fetchTriggered, setFetchTriggered] = useState(false);
+  const [manualFetchTriggered, setManualFetchTriggered] = useState(false);
+  const [backgroundFetchTriggered, setBackgroundFetchTriggered] = useState(false);
   const [silentPushTriggered, setSilentPushTriggered] = useState(false);
 
   const updateState = useCallback((steps, time, triggerType) => {
     setStepCount(steps);
     
-    if (triggerType === 'silent') {
-      setLastSilentPushTime(time);
-      setSilentPushTriggered(true);
-    } else if (triggerType === 'fetch' || triggerType === 'manual') {
-      setLastFetchTime(time);
-      setFetchTriggered(true);
+    switch (triggerType) {
+      case 'manual':
+        setLastManualFetchTime(time);
+        setManualFetchTriggered(true);
+        break;
+      case 'background':
+        setLastBackgroundFetchTime(time);
+        setBackgroundFetchTriggered(true);
+        break;
+      case 'silent':
+        setLastSilentPushTime(time);
+        setSilentPushTriggered(true);
+        break;
     }
   }, []);
 
@@ -187,19 +193,16 @@ export default function App() {
   const registerBackgroundFetchTask = async () => {
     try {
       console.log('Registering background fetch task');
-      console.log('BackgroundFetch object keys:', Object.keys(BackgroundFetch));
-      console.log('BackgroundFetchStatus:', BackgroundFetch.BackgroundFetchStatus);
-  
       const status = await BackgroundFetch.getStatusAsync();
       console.log('Background fetch status:', status);
-  
+
       if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
         await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
           minimumInterval: 15 * 60, // 15 minutes
           stopOnTerminate: false,
           startOnBoot: true,
         });
-  
+
         const tasks = await TaskManager.getRegisteredTasksAsync();
         console.log('Registered tasks:', tasks);
       } else {
@@ -260,12 +263,17 @@ export default function App() {
       </View>
 
       <View style={styles.infoBox}>
-        <Text style={styles.label}>Last Background Fetch Time:</Text>
-        <Text style={styles.data}>{formatDate(lastFetchTime)}</Text>
+        <Text style={styles.label}>Last Manual Fetch Time:</Text>
+        <Text style={styles.data}>{formatDate(lastManualFetchTime)}</Text>
       </View>
 
       <View style={styles.infoBox}>
-        <Text style={styles.label}>Last Silent Push Notification Time:</Text>
+        <Text style={styles.label}>Last Background Fetch Time:</Text>
+        <Text style={styles.data}>{formatDate(lastBackgroundFetchTime)}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
+        <Text style={styles.label}>Last Silent Push Time:</Text>
         <Text style={styles.data}>{formatDate(lastSilentPushTime)}</Text>
       </View>
 
@@ -280,8 +288,13 @@ export default function App() {
       </View>
 
       <View style={styles.infoBox}>
+        <Text style={styles.label}>Manual Fetch Triggered:</Text>
+        <Text style={styles.data}>{manualFetchTriggered ? 'Yes' : 'No'}</Text>
+      </View>
+
+      <View style={styles.infoBox}>
         <Text style={styles.label}>Background Fetch Triggered:</Text>
-        <Text style={styles.data}>{fetchTriggered ? 'Yes' : 'No'}</Text>
+        <Text style={styles.data}>{backgroundFetchTriggered ? 'Yes' : 'No'}</Text>
       </View>
 
       <View style={styles.infoBox}>

@@ -20,6 +20,10 @@
         "UIBackgroundModes": [
           "fetch",
           "remote-notification"
+        ],
+        "BGTaskSchedulerPermittedIdentifiers": [
+          "com.lsandini.walker.fetch",
+          "com.lsandini.walker.notification"
         ]
       }
     },

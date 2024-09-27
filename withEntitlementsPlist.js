@@ -52,7 +52,7 @@ const {
         HEALTH_CLINIC_SHARE;
   
       // Add UIBackgroundModes for HealthKit and background fetch
-      const requiredModes = ['fetch', 'remote-notification', 'processing'];
+      const requiredModes = ['fetch', 'remote-notification'];
       const backgroundModes = new Set(config.modResults.UIBackgroundModes || []);
       
       requiredModes.forEach(mode => backgroundModes.add(mode));

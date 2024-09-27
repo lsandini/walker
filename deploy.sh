@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "fix background fetch"
+git commit -m "separate manual, fetch and silent push"
 git push -u origin silent2
