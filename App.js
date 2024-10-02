@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Button, StyleSheet, ScrollView, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, Button, StyleSheet, ScrollView, Alert, TouchableOpacity, SafeAreaView } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
@@ -44,14 +44,10 @@ TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
     const steps = await processAndUploadSteps('background');
     console.log('Background fetch completed. Steps:', steps);
     
-    if (BackgroundFetch.Result) {
-      return steps ? BackgroundFetch.Result.NewData : BackgroundFetch.Result.NoData;
-    } else {
-      return steps ? 2 : 1; // 2 for NewData, 1 for NoData
-    }
+    return steps ? BackgroundFetch.BackgroundFetchResult.NewData : BackgroundFetch.BackgroundFetchResult.NoData;
   } catch (error) {
     console.error('Background fetch task failed:', error);
-    return BackgroundFetch.Result ? BackgroundFetch.Result.Failed : 3;
+    return BackgroundFetch.BackgroundFetchResult.Failed;
   }
 });
 
@@ -80,6 +76,7 @@ export default function App() {
   const [manualFetchTriggered, setManualFetchTriggered] = useState(false);
   const [backgroundFetchTriggered, setBackgroundFetchTriggered] = useState(false);
   const [silentPushTriggered, setSilentPushTriggered] = useState(false);
+  const [backgroundFetchStatus, setBackgroundFetchStatus] = useState('Unknown');
 
   const updateState = useCallback((steps, time, triggerType) => {
     setStepCount(steps);
@@ -112,7 +109,7 @@ export default function App() {
     let subscriptions = [];
     const setupApp = async () => {
       await requestPermissions();
-      await registerBackgroundFetchTask();
+      await checkAndUpdateBackgroundFetchStatus();
       subscriptions = await registerForPushNotificationsAsync();
       await setupBackgroundNotificationHandler();
     };
@@ -190,31 +187,65 @@ export default function App() {
     console.log('Background notification task registered');
   };
 
+  const checkAndUpdateBackgroundFetchStatus = async () => {
+    try {
+      console.log('Checking background fetch task status');
+      const status = await BackgroundFetch.getStatusAsync();
+      console.log('Background fetch status:', status);
+  
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(STEP_COUNT_FETCH_TASK);
+      console.log('Is background fetch task registered:', isRegistered);
+  
+      switch (status) {
+        case BackgroundFetch.BackgroundFetchStatus.Restricted:
+          setBackgroundFetchStatus('Restricted');
+          break;
+        case BackgroundFetch.BackgroundFetchStatus.Denied:
+          setBackgroundFetchStatus('Denied');
+          break;
+        case BackgroundFetch.BackgroundFetchStatus.Available:
+          setBackgroundFetchStatus(isRegistered ? 'Available and Registered' : 'Available but Not Registered');
+          break;
+        default:
+          setBackgroundFetchStatus(`Unknown (${status})`);
+      }
+    } catch (error) {
+      console.error('Error checking background fetch task:', error);
+      setBackgroundFetchStatus('Error');
+    }
+  };
+
   const registerBackgroundFetchTask = async () => {
     try {
       console.log('Registering background fetch task');
-      const status = await BackgroundFetch.getStatusAsync();
-      console.log('Background fetch status:', status);
+      await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
+        minimumInterval: 15 * 60, // 15 minutes
+        stopOnTerminate: false,
+        startOnBoot: true,
+      });
 
-      if (status === BackgroundFetch.BackgroundFetchStatus.Available) {
-        await BackgroundFetch.registerTaskAsync(STEP_COUNT_FETCH_TASK, {
-          minimumInterval: 15 * 60, // 15 minutes
-          stopOnTerminate: false,
-          startOnBoot: true,
-        });
-
-        const tasks = await TaskManager.getRegisteredTasksAsync();
-        console.log('Registered tasks:', tasks);
-      } else {
-        console.log('Background fetch is not available. Status:', 
-          Object.keys(BackgroundFetch.BackgroundFetchStatus).find(key => 
-            BackgroundFetch.BackgroundFetchStatus[key] === status
-          )
-        );
-      }
+      await checkAndUpdateBackgroundFetchStatus();
+      console.log('Background fetch task registered successfully');
     } catch (error) {
       console.error('Error registering background fetch task:', error);
-      console.error('Error details:', error.message, error.stack);
+      setBackgroundFetchStatus('Registration Failed');
+    }
+  };
+
+  const unregisterBackgroundFetchTask = async () => {
+    try {
+      console.log('Unregistering background fetch task');
+      const isRegistered = await TaskManager.isTaskRegisteredAsync(STEP_COUNT_FETCH_TASK);
+      if (isRegistered) {
+        await BackgroundFetch.unregisterTaskAsync(STEP_COUNT_FETCH_TASK);
+        console.log('Background fetch task unregistered');
+      } else {
+        console.log('Background fetch task was not registered');
+      }
+      await checkAndUpdateBackgroundFetchStatus();
+    } catch (error) {
+      console.error('Error unregistering background fetch task:', error);
+      setBackgroundFetchStatus('Unregistration Failed');
     }
   };
 
@@ -254,71 +285,85 @@ export default function App() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>HealthKit Step Tracker</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.scrollView}>
+        <Text style={styles.title}>HealthKit Step Tracker</Text>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Last Step Count:</Text>
-        <Text style={styles.data}>{stepCount}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Last Step Count:</Text>
+          <Text style={styles.data}>{stepCount}</Text>
+        </View>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Last Manual Fetch Time:</Text>
-        <Text style={styles.data}>{formatDate(lastManualFetchTime)}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Last Manual Fetch Time:</Text>
+          <Text style={styles.data}>{formatDate(lastManualFetchTime)}</Text>
+        </View>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Last Background Fetch Time:</Text>
-        <Text style={styles.data}>{formatDate(lastBackgroundFetchTime)}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Last Background Fetch Time:</Text>
+          <Text style={styles.data}>{formatDate(lastBackgroundFetchTime)}</Text>
+        </View>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Last Silent Push Time:</Text>
-        <Text style={styles.data}>{formatDate(lastSilentPushTime)}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Last Silent Push Time:</Text>
+          <Text style={styles.data}>{formatDate(lastSilentPushTime)}</Text>
+        </View>
 
-      <View style={styles.infoBoxToken}>
-        <Text style={styles.label}>Device Token:</Text>
-        <Text style={styles.data} numberOfLines={1} ellipsizeMode="middle">
-          {deviceToken || 'Not available'}
-        </Text>
-        <TouchableOpacity onPress={copyToClipboard} style={styles.copyButton}>
-          <Text style={styles.copyButtonText}>Copy</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.infoBoxToken}>
+          <Text style={styles.labelToken}>Device Token:</Text>
+          <Text style={styles.dataToken} numberOfLines={1} ellipsizeMode="middle">
+            {deviceToken || 'Not available'}
+          </Text>
+          <TouchableOpacity onPress={copyToClipboard} style={styles.copyButton}>
+            <Text style={styles.copyButtonText}>Copy</Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Manual Fetch Triggered:</Text>
-        <Text style={styles.data}>{manualFetchTriggered ? 'Yes' : 'No'}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Manual Fetch Triggered:</Text>
+          <Text style={styles.data}>{manualFetchTriggered ? 'Yes' : 'No'}</Text>
+        </View>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Background Fetch Triggered:</Text>
-        <Text style={styles.data}>{backgroundFetchTriggered ? 'Yes' : 'No'}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Background Fetch Triggered:</Text>
+          <Text style={styles.data}>{backgroundFetchTriggered ? 'Yes' : 'No'}</Text>
+        </View>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.label}>Silent Push Triggered:</Text>
-        <Text style={styles.data}>{silentPushTriggered ? 'Yes' : 'No'}</Text>
-      </View>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Silent Push Triggered:</Text>
+          <Text style={styles.data}>{silentPushTriggered ? 'Yes' : 'No'}</Text>
+        </View>
 
-      <Button title="Manually Fetch Steps" onPress={handleManualFetch} />
-    </ScrollView>
+        <View style={styles.infoBox}>
+          <Text style={styles.label}>Background Fetch Status:</Text>
+          <Text style={styles.data}>{backgroundFetchStatus}</Text>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          <Button title="Manually Fetch Steps" onPress={handleManualFetch} />
+          <Button title="Check Background Fetch Status" onPress={checkAndUpdateBackgroundFetchStatus} />
+          <Button title="Unregister Background Fetch Task" onPress={unregisterBackgroundFetchTask} />
+          <Button title="Register Background Fetch Task" onPress={registerBackgroundFetchTask} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+  safeArea: {
+    flex: 1,
     backgroundColor: '#f2f2f2',
+  },
+  scrollView: {
+    flexGrow: 1,
+    padding: 20,
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center',
   },
   infoBox: {
     width: '100%',
@@ -351,14 +396,24 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    flex: 1,
+    marginBottom: 5,
   },
   data: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#000',
+  },
+  labelToken: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  dataToken: {
+    fontSize: 14,
+    color: '#000',
     flex: 2,
-    marginRight: 10,
+    marginHorizontal: 10,
   },
   copyButton: {
     backgroundColor: '#007AFF',
@@ -368,5 +423,8 @@ const styles = StyleSheet.create({
   copyButtonText: {
     color: 'white',
     fontSize: 12,
+  },
+  buttonContainer: {
+    marginTop: 20,
   },
 });

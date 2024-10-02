@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "separate manual, fetch and silent push"
+git commit -m "add manual un/registration + safearea --> 7"
 git push -u origin silent2
