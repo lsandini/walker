@@ -5,7 +5,6 @@ const {
   
   const HEALTH_SHARE = 'Read and understand health data.';
   const HEALTH_UPDATE = 'Share workout data with other apps.';
-  const HEALTH_CLINIC_SHARE = 'Read and understand clinical health data.';
   
   // Function to change the cgmsimapp.entitlements
   const changeEntitlements = (entitlements) => {
@@ -15,7 +14,6 @@ const {
     const newEntitlements = {
       'aps-environment': 'development',
       'com.apple.developer.healthkit': true,
-      'com.apple.developer.healthkit.access': ['health-records'],
       'com.apple.developer.healthkit.background-delivery': true,
     };
   
@@ -31,8 +29,7 @@ const {
     config,
     {
       healthSharePermission,
-      healthUpdatePermission,
-      healthClinicalDescription,
+      healthUpdatePermission
     } = {}
   ) => {
     // Add permissions and UIBackgroundModes
@@ -46,13 +43,9 @@ const {
         healthUpdatePermission ||
         config.modResults.NSHealthUpdateUsageDescription ||
         HEALTH_UPDATE;
-      config.modResults.NSHealthClinicalHealthRecordsShareUsageDescription =
-        healthClinicalDescription ||
-        config.modResults.NSHealthClinicalHealthRecordsShareUsageDescription ||
-        HEALTH_CLINIC_SHARE;
   
       // Add UIBackgroundModes for HealthKit and background fetch
-      const requiredModes = ['fetch', 'remote-notification'];
+      const requiredModes = ['fetch', 'remote-notification', 'processing'];
       const backgroundModes = new Set(config.modResults.UIBackgroundModes || []);
       
       requiredModes.forEach(mode => backgroundModes.add(mode));

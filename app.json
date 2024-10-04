@@ -20,11 +20,13 @@
         "NSHealthUpdateUsageDescription": "This app uses HealthKit to track your steps.",
         "UIBackgroundModes": [
           "fetch",
-          "remote-notification"
+          "remote-notification",
+          "processing"
         ],
         "BGTaskSchedulerPermittedIdentifiers": [
           "com.lsandini.walker.fetch",
-          "com.lsandini.walker.notification"
+          "com.lsandini.walker.notification",
+          "com.transistorsoft.fetch"
         ]
       }
     },
@@ -58,12 +60,13 @@
           }
         }
       ],
-      [      
+      [
         "react-native-health"
       ],
       [
         "./withEntitlementsPlist.js"
-      ]
+      ],
+      "react-native-background-fetch"
     ]
   }
 }
