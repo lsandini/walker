@@ -41,10 +41,9 @@ const initBackgroundFetch = async () => {
   try {
     // Configure the background fetch
     const status = await BackgroundFetch.configure({
-      minimumFetchInterval: 15, // 15 minutes
+      minimumFetchInterval: 15, // Fetch interval in minutes
       stopOnTerminate: false,
-      startOnBoot: true,
-      enableHeadless: true,
+      startOnBoot: true
     }, async (taskId) => {
       console.log('[BackgroundFetch] Event received:', taskId);
       await processAndUploadSteps('background');
@@ -55,13 +54,6 @@ const initBackgroundFetch = async () => {
     });
 
     console.log('[BackgroundFetch] configure status:', status);
-
-    // Register your task
-    await BackgroundFetch.scheduleTask({
-      taskId: BACKGROUND_FETCH_TASK,
-      delay: 60 * 1000, // 60 seconds
-      periodic: true
-    });
 
   } catch (error) {
     console.error('[BackgroundFetch] configure ERROR:', error);
