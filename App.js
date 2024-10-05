@@ -1,21 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Button, StyleSheet, ScrollView, Alert, TouchableOpacity, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, SafeAreaView } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import * as TaskManager from 'expo-task-manager';
 import AppleHealthKit from 'react-native-health';
 import * as Clipboard from 'expo-clipboard';
 import { uploadStepCountToAPI, fetchStepCountFromHealthKit } from './stepService';
-import BackgroundFetch from 'react-native-background-fetch';
+import BackgroundFetch from "react-native-background-fetch";
 
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
   console.error('Global error:', error, 'Is fatal:', isFatal);
-  // Additional error reporting logic can be added here.
 });
 
-// Task constants
-const STEP_COUNT_FETCH_TASK = 'com.lsandini.walker.fetch';
-const BACKGROUND_NOTIFICATION_TASK = 'com.lsandini.walker.notification';
+const BACKGROUND_FETCH_TASK = 'com.lsandini.walker.fetch';
 
 let updateAppState = null;
 
@@ -28,7 +24,6 @@ const processAndUploadSteps = async (triggerType) => {
     console.log(`Fetched step count: ${steps}`);
     await uploadStepCountToAPI(steps);
 
-    // Update app state with steps
     if (updateAppState) {
       updateAppState(steps, new Date(), triggerType);
     }
@@ -41,41 +36,35 @@ const processAndUploadSteps = async (triggerType) => {
   }
 };
 
-// Task manager to define background fetch task
-TaskManager.defineTask(STEP_COUNT_FETCH_TASK, async () => {
+// Setup background fetch
+const initBackgroundFetch = async () => {
   try {
-    console.log('Background fetch task is running');
-    const steps = await processAndUploadSteps('background');
-    console.log('Background fetch completed. Steps:', steps);
-
-    return steps ? BackgroundFetch.Result.NewData : BackgroundFetch.Result.NoData;
-  } catch (error) {
-    console.error('Background fetch task failed:', error);
-    return BackgroundFetch.Result.Failed;
-  }
-});
-
-// Setup background fetch and notification handling
-const setupBackgroundFetch = async () => {
-  try {
+    // Configure the background fetch
     const status = await BackgroundFetch.configure({
-      minimumFetchInterval: 15, // 15-minute interval
-      stopOnTerminate: false,    // Continue after app termination
-      startOnBoot: true,         // Start on boot
-      enableHeadless: true,      // Run when app is killed
+      minimumFetchInterval: 15, // 15 minutes
+      stopOnTerminate: false,
+      startOnBoot: true,
+      enableHeadless: true,
     }, async (taskId) => {
-      console.log('Background fetch task executed:', taskId);
+      console.log('[BackgroundFetch] Event received:', taskId);
       await processAndUploadSteps('background');
-      BackgroundFetch.finish(taskId); // Notify iOS task is done
-    }, async (taskId) => {
-      // This is the onTimeout callback.
-      console.log("[BackgroundFetch] timeout:", taskId);
-      BackgroundFetch.finish(taskId); // Finish the task even if it times out
+      BackgroundFetch.finish(taskId);
+    }, (taskId) => {
+      console.warn('[BackgroundFetch] TIMEOUT:', taskId);
+      BackgroundFetch.finish(taskId);
     });
 
-    console.log('Background fetch status:', status);
+    console.log('[BackgroundFetch] configure status:', status);
+
+    // Register your task
+    await BackgroundFetch.scheduleTask({
+      taskId: BACKGROUND_FETCH_TASK,
+      delay: 60 * 1000, // 60 seconds
+      periodic: true
+    });
+
   } catch (error) {
-    console.error('Error setting up background fetch:', error);
+    console.error('[BackgroundFetch] configure ERROR:', error);
   }
 };
 
@@ -92,7 +81,6 @@ export default function App() {
     background: false,
     silent: false,
   });
-  const [backgroundTaskRegistered, setBackgroundTaskRegistered] = useState(false);
 
   // Function to update the app state
   const updateState = useCallback((steps, time, triggerType) => {
@@ -103,7 +91,12 @@ export default function App() {
 
   // Setup background fetch and notifications
   useEffect(() => {
-    setupBackgroundFetch();
+    const setupApp = async () => {
+      await initBackgroundFetch();
+      await requestPermissions();
+      await registerForPushNotificationsAsync();
+    };
+    setupApp();
   }, []);
 
   // Handle background task updates
@@ -113,21 +106,6 @@ export default function App() {
       updateAppState = null;
     };
   }, [updateState]);
-
-  // App initialization and notification setup
-  useEffect(() => {
-    const setupApp = async () => {
-      await requestPermissions(); // Request permissions first
-      const subscriptions = await registerForPushNotificationsAsync(); // Then register for notifications
-      await setupBackgroundNotificationHandler(); // Set up the background notification handler
-      return subscriptions;
-    };
-
-    const subscriptions = setupApp();
-    return () => {
-      subscriptions.forEach(subscription => subscription.remove());
-    };
-  }, []);
 
   // Request permissions for HealthKit and notifications
   const requestPermissions = async () => {
@@ -150,7 +128,7 @@ export default function App() {
     const { status: notificationStatus } = await Notifications.requestPermissionsAsync();
     if (notificationStatus !== 'granted') {
       console.log('Notification permission not granted');
-      Alert.alert('Notification permission is required to use this feature.');
+      Alert.alert('Notification permission is required for full functionality.');
     } else {
       console.log('Notification permission granted');
     }
@@ -160,14 +138,6 @@ export default function App() {
   const registerForPushNotificationsAsync = async () => {
     console.log('Registering for push notifications');
 
-    // Ensure notification permissions are granted
-    const { status: notificationStatus } = await Notifications.getPermissionsAsync();
-    if (notificationStatus !== 'granted') {
-      console.log('Push notification permissions not granted.');
-      return [];
-    }
-
-    // Attempt to get the device token
     try {
       const { data: token } = await Notifications.getDevicePushTokenAsync();
       if (token) {
@@ -180,7 +150,6 @@ export default function App() {
       console.error('Error getting device token:', error);
     }
 
-    // Set up notification handler
     Notifications.setNotificationHandler({
       handleNotification: async (notification) => {
         console.log('Handling notification:', JSON.stringify(notification, null, 2));
@@ -189,27 +158,9 @@ export default function App() {
           await processAndUploadSteps('silent');
           return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
         }
-        console.log('Standard notification received');
         return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
       },
     });
-
-    const foregroundSubscription = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('Notification received (foreground):', JSON.stringify(notification, null, 2));
-    });
-
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('Notification response received:', JSON.stringify(response, null, 2));
-    });
-
-    return [foregroundSubscription, responseSubscription];
-  };
-
-  // Setup background notification handler
-  const setupBackgroundNotificationHandler = async () => {
-    await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
-    console.log('Background notification task registered');
-    setBackgroundTaskRegistered(true);
   };
 
   const handleManualFetch = async () => {
@@ -321,4 +272,13 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     textAlign: 'center',
   },
+});
+
+// Make sure to add this somewhere in your app's startup code, outside of the App component
+BackgroundFetch.registerHeadlessTask(async ({ taskId }) => {
+  console.log('[BackgroundFetch] Headless event received:', taskId);
+  if (taskId === BACKGROUND_FETCH_TASK) {
+    await processAndUploadSteps('background');
+  }
+  BackgroundFetch.finish(taskId);
 });
