@@ -18,6 +18,7 @@ import {
   fetchStepCountFromHealthKit,
 } from "./stepService";
 import BackgroundFetch from "react-native-background-fetch";
+import * as TaskManager from 'expo-task-manager';
 
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
@@ -87,11 +88,27 @@ async function getPushToken() {
 }
 
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    
+    if (data && data['content-available'] === 1) {
+      // This is a silent notification
+      console.log('Received silent notification:', data);
+      await processAndUploadSteps("silent");
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+    
+    // For regular notifications
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 async function setupAndroidNotifications() {
@@ -114,6 +131,29 @@ async function setupAndroidNotifications() {
 }
 
 const BACKGROUND_FETCH_TASK = "com.lsandini.walker.fetch";
+const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
+
+TaskManager.defineTask(
+  BACKGROUND_NOTIFICATION_TASK,
+  async ({ data, error }) => {
+    if (error) {
+      console.error('Error occurred in background task:', error.message);
+      return;
+    }
+    console.log('Background task triggered');
+    if (data) {
+      const now = new Date().toUTCString();
+      console.log(`Received silent push notification at ${now}`, data);
+      try {
+        await processAndUploadSteps("silent");
+      } catch (error) {
+        console.error('Error processing silent push notification:', error);
+      }
+    } else {
+      console.log('No data received with the silent push notification');
+    }
+  }
+);
 
 let updateAppState = null;
 
@@ -193,10 +233,17 @@ export default function App() {
         const token = await registerForPushNotificationsAsync();
         console.log("Setting device token:", token);
         setDeviceToken(token);
+  
+        // Register the background task for silent push notifications
+        console.log('Registering background task...');
+        await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+        console.log('Background task registered');
+  
       } catch (error) {
         console.error("Error in setupApp:", error);
       }
     };
+  
     setupApp();
   }, []);
 
@@ -412,10 +459,10 @@ const styles = StyleSheet.create({
 });
 
 // Make sure to add this somewhere in your app's startup code, outside of the App component
-// BackgroundFetch.registerHeadlessTask(async ({ taskId }) => {
-//   console.log('[BackgroundFetch] Headless event received:', taskId);
-//   if (taskId === BACKGROUND_FETCH_TASK) {
-//     await processAndUploadSteps('background');
-//   }
-//   BackgroundFetch.finish(taskId);
-// });
+BackgroundFetch.registerHeadlessTask(async ({ taskId }) => {
+  console.log('[BackgroundFetch] Headless event received:', taskId);
+  if (taskId === BACKGROUND_FETCH_TASK) {
+    await processAndUploadSteps('background');
+  }
+  BackgroundFetch.finish(taskId);
+});
