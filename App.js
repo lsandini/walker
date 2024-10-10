@@ -19,10 +19,57 @@ import {
 } from "./stepService";
 import BackgroundFetch from "react-native-background-fetch";
 import * as TaskManager from 'expo-task-manager';
+import Constants from 'expo-constants';
 
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
   console.error("Global error:", error, "Is fatal:", isFatal);
+});
+
+const BACKGROUND_FETCH_TASK = "com.lsandini.walker.fetch";
+const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
+
+TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
+  if (error) {
+    console.error('Error occurred in background task:', error.message);
+    return;
+  }
+  console.log('Background task triggered');
+  if (data) {
+    const now = new Date().toUTCString();
+    console.log(`Received silent push notification at ${now}`, data);
+    try {
+      await processAndUploadSteps("silent");
+    } catch (error) {
+      console.error('Error processing silent push notification:', error);
+    }
+  } else {
+    console.log('No data received with the silent push notification');
+  }
+});
+
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+    const data = notification.request.content.data;
+    
+    if (data && data['content-available'] === 1) {
+      // This is a silent notification
+      console.log('Received silent notification:', data);
+      await processAndUploadSteps("silent");
+      return {
+        shouldShowAlert: false,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      };
+    }
+    
+    // For regular notifications
+    return {
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    };
+  },
 });
 
 async function registerForPushNotificationsAsync() {
@@ -38,8 +85,7 @@ async function registerForPushNotificationsAsync() {
   }
 
   if (Device.isDevice) {
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     console.log("finalStatus", finalStatus);
@@ -70,9 +116,7 @@ async function registerForPushNotificationsAsync() {
 
 async function getPushToken() {
   if (Platform.OS === "ios") {
-    const tokenIos = await Notifications.getDevicePushTokenAsync({
-      // experienceId: '@nickxbs/cgmsim-app',
-    });
+    const tokenIos = await Notifications.getDevicePushTokenAsync();
     return "ExponentPushToken[" + tokenIos.data + "]";
   } else if (Platform.OS === "android") {
     try {
@@ -86,30 +130,6 @@ async function getPushToken() {
   }
   return null;
 }
-
-Notifications.setNotificationHandler({
-  handleNotification: async (notification) => {
-    const data = notification.request.content.data;
-    
-    if (data && data['content-available'] === 1) {
-      // This is a silent notification
-      console.log('Received silent notification:', data);
-      await processAndUploadSteps("silent");
-      return {
-        shouldShowAlert: false,
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-      };
-    }
-    
-    // For regular notifications
-    return {
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    };
-  },
-});
 
 async function setupAndroidNotifications() {
   await Notifications.setNotificationChannelAsync("cgmsim-channel", {
@@ -129,31 +149,6 @@ async function setupAndroidNotifications() {
     lightColor: "#FF231F7C",
   });
 }
-
-const BACKGROUND_FETCH_TASK = "com.lsandini.walker.fetch";
-const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
-
-TaskManager.defineTask(
-  BACKGROUND_NOTIFICATION_TASK,
-  async ({ data, error }) => {
-    if (error) {
-      console.error('Error occurred in background task:', error.message);
-      return;
-    }
-    console.log('Background task triggered');
-    if (data) {
-      const now = new Date().toUTCString();
-      console.log(`Received silent push notification at ${now}`, data);
-      try {
-        await processAndUploadSteps("silent");
-      } catch (error) {
-        console.error('Error processing silent push notification:', error);
-      }
-    } else {
-      console.log('No data received with the silent push notification');
-    }
-  }
-);
 
 let updateAppState = null;
 
@@ -245,6 +240,29 @@ export default function App() {
     };
   
     setupApp();
+
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      console.log("Received notification:", JSON.stringify(notification, null, 2));
+      setNotification(notification);
+
+      const data = notification.request.content.data;
+      if (data && data['content-available'] === 1) {
+        console.log("Silent notification received");
+        processAndUploadSteps("silent").catch(console.error);
+      } else {
+        console.log("Normal notification received");
+      }
+    });
+
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      console.log("Notification response received:", JSON.stringify(response, null, 2));
+    });
+
+    return () => {
+      Notifications.removeNotificationSubscription(notificationListener.current);
+      Notifications.removeNotificationSubscription(responseListener.current);
+      Notifications.unregisterTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+    };
   }, []);
 
   useEffect(() => {
@@ -275,59 +293,14 @@ export default function App() {
       console.log("HealthKit permission granted");
     });
 
-    const { status: notificationStatus } =
-      await Notifications.requestPermissionsAsync();
+    const { status: notificationStatus } = await Notifications.requestPermissionsAsync();
     if (notificationStatus !== "granted") {
       console.log("Notification permission not granted");
-      Alert.alert(
-        "Notification permission is required for full functionality."
-      );
+      Alert.alert("Notification permission is required for full functionality.");
     } else {
       console.log("Notification permission granted");
     }
   };
-
-  useEffect(() => {
-    notificationListener.current =
-      Notifications.addNotificationReceivedListener((notification) => {
-        console.log(
-          "Received notification:",
-          JSON.stringify(notification, null, 2)
-        );
-        setNotification(notification);
-
-        const aps = notification.request.trigger.payload?.aps;
-        console.log("APS content:", JSON.stringify(aps, null, 2));
-
-        if (aps) {
-          console.log("APS payload exists");
-        } else {
-          console.log("APS payload does not exist");
-        }
-
-        if (aps?.["content-available"] === 1) {
-          console.log("Silent notification received");
-          processAndUploadSteps("silent").catch(console.error);
-        } else {
-          console.log("Normal notification received");
-        }
-      });
-
-    responseListener.current =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log(
-          "Notification response received:",
-          JSON.stringify(response, null, 2)
-        );
-      });
-
-    return () => {
-      Notifications.removeNotificationSubscription(
-        notificationListener.current
-      );
-      Notifications.removeNotificationSubscription(responseListener.current);
-    };
-  }, []);
 
   const handleManualFetch = async () => {
     try {
@@ -335,17 +308,11 @@ export default function App() {
       if (steps !== null) {
         Alert.alert("Success", `Fetched and processed ${steps} steps.`);
       } else {
-        Alert.alert(
-          "Warning",
-          "Failed to fetch or process steps. Please try again."
-        );
+        Alert.alert("Warning", "Failed to fetch or process steps. Please try again.");
       }
     } catch (error) {
       console.error("Error in manual fetch:", error);
-      Alert.alert(
-        "Error",
-        "An error occurred while fetching and processing steps. Please try again."
-      );
+      Alert.alert("Error", "An error occurred while fetching and processing steps. Please try again.");
     }
   };
 
