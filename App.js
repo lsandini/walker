@@ -1,10 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, TouchableOpacity, SafeAreaView } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import AppleHealthKit from 'react-native-health';
 import * as Clipboard from 'expo-clipboard';
 import { uploadStepCountToAPI, fetchStepCountFromHealthKit } from './stepService';
 import BackgroundFetch from "react-native-background-fetch";
+import * as TaskManager from 'expo-task-manager';
+
+Notifications.setNotificationHandler({
+  handleNotification: async (notification) => {
+    console.log(`[${new Date().toISOString()}] Raw notification received:`, JSON.stringify(notification, null, 2));
+    if (isSilentNotification(notification)) {
+      console.log(`[${new Date().toISOString()}] Silent notification detected in handler`);
+      try {
+        const steps = await processAndUploadSteps('silent');
+        console.log(`[${new Date().toISOString()}] Silent notification processed in handler. Steps: ${steps}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] Error processing silent notification in handler:`, error);
+      }
+      return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
+    }
+    return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
+  },
+});
 
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
@@ -12,26 +30,27 @@ ErrorUtils.setGlobalHandler((error, isFatal) => {
 });
 
 const BACKGROUND_FETCH_TASK = 'com.lsandini.walker.fetch';
+const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND_NOTIFICATION_TASK';
 
 let updateAppState = null;
 
 // Function to process steps and upload to API
 const processAndUploadSteps = async (triggerType) => {
-  console.log(`Processing step count from trigger: ${triggerType}`);
+  console.log(`[${new Date().toISOString()}] Processing step count from trigger: ${triggerType}`);
   try {
     const stepCountData = await fetchStepCountFromHealthKit();
     const steps = stepCountData || 0;
-    console.log(`Fetched step count: ${steps}`);
+    console.log(`[${new Date().toISOString()}] Fetched step count: ${steps}`);
     await uploadStepCountToAPI(steps);
 
     if (updateAppState) {
       updateAppState(steps, new Date(), triggerType);
     }
 
-    console.log(`${triggerType} process completed successfully`);
+    console.log(`[${new Date().toISOString()}] ${triggerType} process completed successfully`);
     return steps;
   } catch (error) {
-    console.error(`Error processing steps from ${triggerType}:`, error);
+    console.error(`[${new Date().toISOString()}] Error processing steps from ${triggerType}:`, error);
     return null;
   }
 };
@@ -39,26 +58,60 @@ const processAndUploadSteps = async (triggerType) => {
 // Setup background fetch
 const initBackgroundFetch = async () => {
   try {
-    // Configure the background fetch
     const status = await BackgroundFetch.configure({
-      minimumFetchInterval: 15, // Fetch interval in minutes
+      minimumFetchInterval: 15,
       stopOnTerminate: false,
-      startOnBoot: true
+      startOnBoot: true,
+      enableHeadless: true,
     }, async (taskId) => {
-      console.log('[BackgroundFetch] Event received:', taskId);
+      console.log(`[${new Date().toISOString()}] [BackgroundFetch] Event received:`, taskId);
       await processAndUploadSteps('background');
       BackgroundFetch.finish(taskId);
     }, (taskId) => {
-      console.warn('[BackgroundFetch] TIMEOUT:', taskId);
+      console.warn(`[${new Date().toISOString()}] [BackgroundFetch] TIMEOUT:`, taskId);
       BackgroundFetch.finish(taskId);
     });
 
-    console.log('[BackgroundFetch] configure status:', status);
-
+    console.log(`[${new Date().toISOString()}] [BackgroundFetch] configure status:`, status);
   } catch (error) {
-    console.error('[BackgroundFetch] configure ERROR:', error);
+    console.error(`[${new Date().toISOString()}] [BackgroundFetch] configure ERROR:`, error);
   }
 };
+
+// Register the headless task for BackgroundFetch
+BackgroundFetch.registerHeadlessTask(async ({ taskId }) => {
+  console.log(`[${new Date().toISOString()}] [BackgroundFetch] Headless event received:`, taskId);
+  if (taskId === BACKGROUND_FETCH_TASK) {
+    await processAndUploadSteps('background');
+  }
+  BackgroundFetch.finish(taskId);
+});
+
+// Helper function to check if a notification is silent
+const isSilentNotification = (notification) => {
+  return notification?.request?.content?.data?.aps?.['content-available'] === 1;
+};
+
+// Define the background task for handling notifications
+TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error, executionInfo }) => {
+  console.log(`[${new Date().toISOString()}] Background notification task executed:`, JSON.stringify({ data, error, executionInfo }, null, 2));
+  if (error) {
+    console.error(`[${new Date().toISOString()}] Background notification task failed:`, error);
+    return;
+  }
+  
+  if (isSilentNotification(data.notification)) {
+    console.log(`[${new Date().toISOString()}] Silent notification received in background task`);
+    try {
+      const steps = await processAndUploadSteps('silent');
+      console.log(`[${new Date().toISOString()}] Background silent notification processed. Steps: ${steps}`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] Error processing background silent notification:`, error);
+    }
+  } else {
+    console.log(`[${new Date().toISOString()}] Non-silent notification received in background task`);
+  }
+});
 
 export default function App() {
   const [stepCount, setStepCount] = useState(0);
@@ -73,25 +126,35 @@ export default function App() {
     background: false,
     silent: false,
   });
+  const [notification, setNotification] = useState(null);
+  const notificationListener = useRef();
+  const responseListener = useRef();
 
-  // Function to update the app state
   const updateState = useCallback((steps, time, triggerType) => {
     setStepCount(steps);
     setLastFetchTimes((prev) => ({ ...prev, [triggerType]: time }));
     setFetchTriggered((prev) => ({ ...prev, [triggerType]: true }));
   }, []);
 
-  // Setup background fetch and notifications
   useEffect(() => {
     const setupApp = async () => {
       await initBackgroundFetch();
       await requestPermissions();
       await registerForPushNotificationsAsync();
+      await setupNotificationHandlers();
     };
     setupApp();
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
   }, []);
 
-  // Handle background task updates
   useEffect(() => {
     updateAppState = updateState;
     return () => {
@@ -99,9 +162,8 @@ export default function App() {
     };
   }, [updateState]);
 
-  // Request permissions for HealthKit and notifications
   const requestPermissions = async () => {
-    console.log('Requesting HealthKit and Notification permissions');
+    console.log(`[${new Date().toISOString()}] Requesting HealthKit and Notification permissions`);
     const permissions = {
       permissions: {
         read: [AppleHealthKit.Constants.Permissions.Steps],
@@ -111,48 +173,64 @@ export default function App() {
 
     AppleHealthKit.initHealthKit(permissions, (err) => {
       if (err) {
-        console.log("HealthKit permission not granted:", err);
+        console.log(`[${new Date().toISOString()}] HealthKit permission not granted:`, err);
         return;
       }
-      console.log("HealthKit permission granted");
+      console.log(`[${new Date().toISOString()}] HealthKit permission granted`);
     });
 
-    const { status: notificationStatus } = await Notifications.requestPermissionsAsync();
+    const { status: notificationStatus } = await Notifications.requestPermissionsAsync({
+      ios: {
+        allowAlert: true,
+        allowBadge: true,
+        allowSound: true,
+        allowAnnouncements: true,
+      },
+    });
     if (notificationStatus !== 'granted') {
-      console.log('Notification permission not granted');
+      console.log(`[${new Date().toISOString()}] Notification permission not granted`);
       Alert.alert('Notification permission is required for full functionality.');
     } else {
-      console.log('Notification permission granted');
+      console.log(`[${new Date().toISOString()}] Notification permission granted`);
     }
   };
 
-  // Register for push notifications
   const registerForPushNotificationsAsync = async () => {
-    console.log('Registering for push notifications');
+    console.log(`[${new Date().toISOString()}] Registering for push notifications`);
 
     try {
-      const { data: token } = await Notifications.getDevicePushTokenAsync();
-      if (token) {
-        setDeviceToken(token);
-        console.log('APNS device token:', token);
+      const { data: token } = await Notifications.getExpoPushTokenAsync();
+      console.log(`[${new Date().toISOString()}] Expo push token:`, token);
+      
+      const { data: devicePushToken } = await Notifications.getDevicePushTokenAsync();
+      if (devicePushToken) {
+        setDeviceToken(devicePushToken);
+        console.log(`[${new Date().toISOString()}] APNS device token:`, devicePushToken);
       } else {
-        console.log('Failed to get device token - token is null');
+        console.log(`[${new Date().toISOString()}] Failed to get device token - token is null`);
       }
     } catch (error) {
-      console.error('Error getting device token:', error);
+      console.error(`[${new Date().toISOString()}] Error getting device token:`, error);
     }
+  };
 
-    Notifications.setNotificationHandler({
-      handleNotification: async (notification) => {
-        console.log('Handling notification:', JSON.stringify(notification, null, 2));
-        if (notification.request.content.data?.aps?.['content-available'] === 1) {
-          console.log('Silent notification received');
-          await processAndUploadSteps('silent');
-          return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
-        }
-        return { shouldShowAlert: true, shouldPlaySound: true, shouldSetBadge: true };
-      },
+  const setupNotificationHandlers = async () => {
+    notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
+      console.log(`[${new Date().toISOString()}] Notification received in listener:`, JSON.stringify(notification, null, 2));
+      setNotification(notification);
+      
+      if (isSilentNotification(notification)) {
+        console.log(`[${new Date().toISOString()}] Silent notification received in listener`);
+        processAndUploadSteps('silent').catch(console.error);
+      }
     });
+  
+    responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
+      console.log(`[${new Date().toISOString()}] Notification response received:`, JSON.stringify(response, null, 2));
+    });
+  
+    await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+    console.log(`[${new Date().toISOString()}] Background notification task registered`);
   };
 
   const handleManualFetch = async () => {
@@ -190,6 +268,7 @@ export default function App() {
     }
   };
 
+  // Render function
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -216,6 +295,13 @@ export default function App() {
           <Text style={styles.subtitle}>Manual: {fetchTriggered.manual ? 'Yes' : 'No'}</Text>
           <Text style={styles.subtitle}>Background: {fetchTriggered.background ? 'Yes' : 'No'}</Text>
           <Text style={styles.subtitle}>Silent: {fetchTriggered.silent ? 'Yes' : 'No'}</Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.title}>Last Notification:</Text>
+          <Text style={styles.subtitle}>
+            {notification ? JSON.stringify(notification.request.content, null, 2) : 'No notification received'}
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -264,13 +350,4 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     textAlign: 'center',
   },
-});
-
-// Make sure to add this somewhere in your app's startup code, outside of the App component
-BackgroundFetch.registerHeadlessTask(async ({ taskId }) => {
-  console.log('[BackgroundFetch] Headless event received:', taskId);
-  if (taskId === BACKGROUND_FETCH_TASK) {
-    await processAndUploadSteps('background');
-  }
-  BackgroundFetch.finish(taskId);
 });

@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "rnbf 2 with small fixes"
+git commit -m "rnbf 3 "
 git push -u origin silent2

@@ -37,4 +37,7 @@ dist/
 *.tsbuildinfo
 eas.json
 
+/ios/
+
+
 

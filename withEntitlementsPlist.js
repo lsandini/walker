@@ -20,7 +20,7 @@ const changeEntitlements = (entitlements) => {
   // Merge the new entitlements with the existing ones
   const finalEntitlements = { ...entitlements, ...newEntitlements };
 
-  console.log('cgmsimapp.entitlements modified successfully.');
+  console.log('walker.entitlements modified successfully.');
 
   return finalEntitlements;
 };
