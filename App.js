@@ -1,3 +1,4 @@
+// Import necessary modules and components
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Platform,
@@ -26,9 +27,12 @@ ErrorUtils.setGlobalHandler((error, isFatal) => {
   console.error("Global error:", error, "Is fatal:", isFatal);
 });
 
+// Define constants for task names
 const BACKGROUND_FETCH_TASK = "com.lsandini.walker.fetch";
-const BACKGROUND_NOTIFICATION_TASK = 'background-notification-task';
+const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
+// Define the background task at the top level of the file
+// This ensures it's defined during the initialization phase
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Error occurred in background task:', error.message);
@@ -48,6 +52,7 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
   }
 });
 
+// Set up the notification handler
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const data = notification.request.content.data;
@@ -72,6 +77,7 @@ Notifications.setNotificationHandler({
   },
 });
 
+// Helper function to register for push notifications
 async function registerForPushNotificationsAsync() {
   let token;
 
@@ -114,6 +120,7 @@ async function registerForPushNotificationsAsync() {
   return token;
 }
 
+// Helper function to get the push token
 async function getPushToken() {
   if (Platform.OS === "ios") {
     const tokenIos = await Notifications.getDevicePushTokenAsync();
@@ -131,6 +138,7 @@ async function getPushToken() {
   return null;
 }
 
+// Helper function to set up Android notification channels
 async function setupAndroidNotifications() {
   await Notifications.setNotificationChannelAsync("cgmsim-channel", {
     name: "cgmsim-channel",
@@ -150,8 +158,10 @@ async function setupAndroidNotifications() {
   });
 }
 
+// Variable to store the update function
 let updateAppState = null;
 
+// Function to process and upload steps
 const processAndUploadSteps = async (triggerType) => {
   console.log(`Processing step count from trigger: ${triggerType}`);
   try {
@@ -172,6 +182,7 @@ const processAndUploadSteps = async (triggerType) => {
   }
 };
 
+// Function to initialize background fetch
 const initBackgroundFetch = async () => {
   try {
     const status = await BackgroundFetch.configure(
@@ -197,7 +208,9 @@ const initBackgroundFetch = async () => {
   }
 };
 
+// Main App component
 export default function App() {
+  // State variables
   const [notification, setNotification] = useState(false);
   const notificationListener = useRef();
   const responseListener = useRef();
@@ -214,12 +227,14 @@ export default function App() {
     silent: false,
   });
 
+  // Function to update the app state
   const updateState = useCallback((steps, time, triggerType) => {
     setStepCount(steps);
     setLastFetchTimes((prev) => ({ ...prev, [triggerType]: time }));
     setFetchTriggered((prev) => ({ ...prev, [triggerType]: true }));
   }, []);
 
+  // Effect to set up the app
   useEffect(() => {
     const setupApp = async () => {
       try {
@@ -241,6 +256,7 @@ export default function App() {
   
     setupApp();
 
+    // Set up notification listeners
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log("Received notification:", JSON.stringify(notification, null, 2));
       setNotification(notification);
@@ -258,17 +274,21 @@ export default function App() {
       console.log("Notification response received:", JSON.stringify(response, null, 2));
     });
 
+    // Cleanup function
     return () => {
       Notifications.removeNotificationSubscription(notificationListener.current);
       Notifications.removeNotificationSubscription(responseListener.current);
-      Notifications.unregisterTaskAsync(BACKGROUND_NOTIFICATION_TASK);
+      // Use TaskManager to unregister the task
+      TaskManager.unregisterTaskAsync(BACKGROUND_NOTIFICATION_TASK);
     };
   }, []);
 
+  // Effect to log when device token is updated
   useEffect(() => {
     console.log("Device token updated:", deviceToken);
   }, [deviceToken]);
 
+  // Effect to update the updateAppState variable
   useEffect(() => {
     updateAppState = updateState;
     return () => {
@@ -276,6 +296,7 @@ export default function App() {
     };
   }, [updateState]);
 
+  // Function to request permissions
   const requestPermissions = async () => {
     console.log("Requesting HealthKit and Notification permissions");
     const permissions = {
@@ -302,6 +323,7 @@ export default function App() {
     }
   };
 
+  // Function to handle manual fetch
   const handleManualFetch = async () => {
     try {
       const steps = await processAndUploadSteps("manual");
@@ -316,6 +338,7 @@ export default function App() {
     }
   };
 
+  // Function to format date
   const formatDate = (date) => {
     if (!date) return "Not fetched yet";
     return new Intl.DateTimeFormat("en-US", {
@@ -328,6 +351,7 @@ export default function App() {
     }).format(date);
   };
 
+  // Function to copy device token to clipboard
   const copyToClipboard = async () => {
     if (deviceToken) {
       await Clipboard.setStringAsync(deviceToken);
@@ -337,6 +361,7 @@ export default function App() {
     }
   };
 
+  // Render method
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.container}>
@@ -381,6 +406,7 @@ export default function App() {
   );
 }
 
+// Styles
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
