@@ -34,11 +34,10 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "android": {
-        "compileSdkVersion": 34,
-        "targetSdkVersion": 34,
-        "minSdkVersion": 26
-      }
+      "package": "com.lsandini.walker",
+      "permissions": [
+        "android.permission.health.READ_STEPS"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -54,6 +53,11 @@
         {
           "ios": {
             "deploymentTarget": "14.0"
+          },
+          "android": {
+            "compileSdkVersion": 34,
+            "targetSdkVersion": 34,
+            "minSdkVersion": 26
           }
         }
       ],
