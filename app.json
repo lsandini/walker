@@ -33,7 +33,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "cgmsim.app",
+      "package": "com.lsandini.walker",
       "permissions": [
         "android.permission.health.READ_STEPS"
       ]
