@@ -33,6 +33,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
+      },
+      "android": {
+        "compileSdkVersion": 34,
+        "targetSdkVersion": 34,
+        "minSdkVersion": 26
       }
     },
     "web": {
@@ -53,6 +58,7 @@
         }
       ],
       "react-native-health",
+      "expo-health-connect",
       "./withEntitlementsPlist.js",
       "react-native-background-fetch"
     ]
