@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "21633043044",
+    "project_id": "walker-97462",
+    "storage_bucket": "walker-97462.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:21633043044:android:6fb3ab70424011bcf5ad71",
+        "android_client_info": {
+          "package_name": "com.lsandini.walker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDT2r3FHq36SFfWK27B9BfSFtyc3UNOYb0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

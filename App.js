@@ -138,6 +138,8 @@ async function getPushToken() {
   return null;
 }
 
+
+
 // Helper function to set up Android notification channels
 async function setupAndroidNotifications() {
   await Notifications.setNotificationChannelAsync("cgmsim-channel", {
@@ -239,7 +241,7 @@ export default function App() {
     const setupApp = async () => {
       try {
         await initBackgroundFetch();
-        await requestPermissions();
+        //await requestPermissions();
         const token = await registerForPushNotificationsAsync();
         console.log("Setting device token:", token);
         setDeviceToken(token);
