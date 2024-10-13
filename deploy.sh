@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "notification icon/plugin"
+git commit -m "add asyncStorage and Health Connect"
 git push -u origin silent4

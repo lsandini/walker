@@ -13,14 +13,20 @@ import {
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import AppleHealthKit from "react-native-health";
+import {
+  initialize,
+  requestPermission,
+  readRecords,
+} from 'react-native-health-connect';
 import * as Clipboard from "expo-clipboard";
 import {
   uploadStepCountToAPI,
-  fetchStepCountFromHealthKit,
+  fetchStepCount,
 } from "./stepService";
 import BackgroundFetch from "react-native-background-fetch";
 import * as TaskManager from 'expo-task-manager';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Global error handler
 ErrorUtils.setGlobalHandler((error, isFatal) => {
@@ -32,7 +38,6 @@ const BACKGROUND_FETCH_TASK = "com.lsandini.walker.fetch";
 const BACKGROUND_NOTIFICATION_TASK = 'BACKGROUND-NOTIFICATION-TASK';
 
 // Define the background task at the top level of the file
-// This ensures it's defined during the initialization phase
 TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Error occurred in background task:', error.message);
@@ -138,8 +143,6 @@ async function getPushToken() {
   return null;
 }
 
-
-
 // Helper function to set up Android notification channels
 async function setupAndroidNotifications() {
   await Notifications.setNotificationChannelAsync("cgmsim-channel", {
@@ -147,7 +150,7 @@ async function setupAndroidNotifications() {
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     enableVibrate: false,
-    sound: "siren.wav", // Provide ONLY the base filename
+    sound: "siren.wav",
     lightColor: "#FF231F7C",
   });
   await Notifications.setNotificationChannelAsync("cgmsim-channel-2", {
@@ -155,7 +158,7 @@ async function setupAndroidNotifications() {
     importance: Notifications.AndroidImportance.MAX,
     vibrationPattern: [0, 250, 250, 250],
     enableVibrate: false,
-    sound: "siren1.wav", // Specify a different sound file
+    sound: "siren1.wav",
     lightColor: "#FF231F7C",
   });
 }
@@ -167,8 +170,7 @@ let updateAppState = null;
 const processAndUploadSteps = async (triggerType) => {
   console.log(`Processing step count from trigger: ${triggerType}`);
   try {
-    const stepCountData = await fetchStepCountFromHealthKit();
-    const steps = stepCountData || 0;
+    const steps = await fetchStepCount();
     console.log(`Fetched step count: ${steps}`);
     await uploadStepCountToAPI(steps);
 
@@ -228,6 +230,7 @@ export default function App() {
     background: false,
     silent: false,
   });
+  const [healthPermissionsGranted, setHealthPermissionsGranted] = useState(false);
 
   // Function to update the app state
   const updateState = useCallback((steps, time, triggerType) => {
@@ -241,12 +244,11 @@ export default function App() {
     const setupApp = async () => {
       try {
         await initBackgroundFetch();
-        //await requestPermissions();
+        await requestHealthPermissions();
         const token = await registerForPushNotificationsAsync();
         console.log("Setting device token:", token);
         setDeviceToken(token);
   
-        // Register the background task for silent push notifications
         console.log('Registering background task...');
         await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK);
         console.log('Background task registered');
@@ -280,7 +282,6 @@ export default function App() {
     return () => {
       Notifications.removeNotificationSubscription(notificationListener.current);
       Notifications.removeNotificationSubscription(responseListener.current);
-      // Use TaskManager to unregister the task
       TaskManager.unregisterTaskAsync(BACKGROUND_NOTIFICATION_TASK);
     };
   }, []);
@@ -298,23 +299,44 @@ export default function App() {
     };
   }, [updateState]);
 
-  // Function to request permissions
-  const requestPermissions = async () => {
-    console.log("Requesting HealthKit and Notification permissions");
-    const permissions = {
-      permissions: {
-        read: [AppleHealthKit.Constants.Permissions.Steps],
-        write: [],
-      },
-    };
+  // Function to request health permissions
+  const requestHealthPermissions = async () => {
+    if (Platform.OS === 'ios') {
+      console.log("Requesting HealthKit permissions");
+      const permissions = {
+        permissions: {
+          read: [AppleHealthKit.Constants.Permissions.Steps],
+          write: [],
+        },
+      };
 
-    AppleHealthKit.initHealthKit(permissions, (err) => {
-      if (err) {
-        console.log("HealthKit permission not granted:", err);
+      AppleHealthKit.initHealthKit(permissions, (err) => {
+        if (err) {
+          console.log("HealthKit permission not granted:", err);
+          return;
+        }
+        console.log("HealthKit permission granted");
+        setHealthPermissionsGranted(true);
+      });
+    } else if (Platform.OS === 'android') {
+      console.log("Requesting Health Connect permissions");
+      const isInitialized = await initialize();
+      if (!isInitialized) {
+        console.log("Health Connect not initialized");
         return;
       }
-      console.log("HealthKit permission granted");
-    });
+
+      try {
+        await requestPermission([
+          { accessType: 'read', recordType: 'Steps' }
+        ]);
+        console.log("Health Connect permission granted");
+        setHealthPermissionsGranted(true);
+        await AsyncStorage.setItem('healthConnectPermissionsGranted', 'true');
+      } catch (error) {
+        console.log("Health Connect permission not granted:", error);
+      }
+    }
 
     const { status: notificationStatus } = await Notifications.requestPermissionsAsync();
     if (notificationStatus !== "granted") {
@@ -328,8 +350,10 @@ export default function App() {
   // Function to handle manual fetch
   const handleManualFetch = async () => {
     try {
-      const steps = await processAndUploadSteps("manual");
+      const steps = await fetchStepCount();
       if (steps !== null) {
+        await uploadStepCountToAPI(steps);
+        updateState(steps, new Date(), "manual");
         Alert.alert("Success", `Fetched and processed ${steps} steps.`);
       } else {
         Alert.alert("Warning", "Failed to fetch or process steps. Please try again.");
