@@ -96,11 +96,18 @@ export const fetchStepCountFromHealthConnect = async () => {
 
     console.log('Fetching step count from Health Connect with options:', timeRangeFilter);
 
-    const steps = await readRecords('Steps', { timeRangeFilter });
-    const totalSteps = steps.reduce((sum, cur) => sum + cur.count, 0);
+    const result = await readRecords('Steps', { timeRangeFilter });
+    console.log(`Fetched step count from Health Connect: ${JSON.stringify(result, null, 2)}`);
 
-    console.log(`Fetched step count from Health Connect: ${totalSteps}`);
-    return Math.round(totalSteps); // Round to the nearest integer
+    if (result.records.length === 0) {
+      console.log('No step data found for the specified time range');
+      return 0;
+    }
+
+    const totalSteps = result.records.reduce((sum, record) => sum + record.count, 0);
+    console.log(`Total steps calculated: ${totalSteps}`);
+    
+    return Math.round(totalSteps);
   } catch (error) {
     console.error('Error fetching step count from Health Connect:', error);
     throw error;
@@ -111,6 +118,9 @@ export const uploadStepCountToAPI = async (steps) => {
   try {
     const apiUrl = process.env.EXPO_PUBLIC_API_URL;
     const apiSecret = process.env.EXPO_PUBLIC_API_KEY; // Assuming API_KEY is used as the secret
+
+    console.log('API URL:', apiUrl);  
+    console.log('API Secret:', apiSecret);
 
     if (!apiUrl || !apiSecret) {
       throw new Error('API URL or API Secret is not defined in environment variables');

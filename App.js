@@ -352,6 +352,7 @@ export default function App() {
     try {
       const steps = await fetchStepCount();
       if (steps !== null) {
+        console.log("@@@ Fetched steps:", steps);
         await uploadStepCountToAPI(steps);
         updateState(steps, new Date(), "manual");
         Alert.alert("Success", `Fetched and processed ${steps} steps.`);
