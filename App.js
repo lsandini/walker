@@ -161,6 +161,14 @@ async function setupAndroidNotifications() {
     sound: "siren1.wav",
     lightColor: "#FF231F7C",
   });
+  await Notifications.setNotificationChannelAsync("silent-background", {
+    name: "silent-background",
+    importance: Notifications.AndroidImportance.MAX,
+    vibrationPattern: [0, 250, 250, 250],
+    enableVibrate: false,
+    sound: "",
+    lightColor: "#FF231F7C",
+  });
 }
 
 // Variable to store the update function
@@ -261,17 +269,53 @@ export default function App() {
     setupApp();
 
     // Set up notification listeners
-    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log("Received notification:", JSON.stringify(notification, null, 2));
-      setNotification(notification);
-
-      const data = notification.request.content.data;
-      if (data && data['content-available'] === 1) {
-        console.log("Silent notification received");
-        processAndUploadSteps("silent").catch(console.error);
-      } else {
-        console.log("Normal notification received");
-      }
+    Notifications.setNotificationHandler({
+      handleNotification: async (notification) => {
+        const data = notification.request.content.data;
+        
+        let isSilent = false;
+        let channelId = null;
+    
+        if (Platform.OS === 'android') {
+          if (data && data.body) {
+            try {
+              const bodyData = JSON.parse(data.body);
+              isSilent = bodyData['content-available'] === 1;
+              channelId = bodyData.channelId;
+            } catch (error) {
+              console.error('Error parsing notification body:', error);
+            }
+          }
+        } else {
+          // iOS
+          isSilent = data && data['content-available'] === 1;
+        }
+    
+        if (isSilent && Platform.OS === 'android') {
+          console.log("Silent notification received");
+          // await processAndUploadSteps("silent");
+          return {
+            shouldShowAlert: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        } else if (isSilent && Platform.OS === 'ios') {
+          console.log("Silent notification received");
+          await processAndUploadSteps("silent");
+          return {
+            shouldShowAlert: false,
+            shouldPlaySound: false,
+            shouldSetBadge: false,
+          };
+        }
+    
+        // For non-silent notifications
+        return {
+          shouldShowAlert: true,
+          shouldPlaySound: true,
+          shouldSetBadge: true,
+        };
+      },
     });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {

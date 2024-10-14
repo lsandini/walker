@@ -1,5 +1,5 @@
 #!/bin/bash
 
 git add .
-git commit -m "manual fetch of Health Connect steps ok !"
+git commit -m "fixed silent push handling in android"
 git push -u origin silent4
